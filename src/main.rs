@@ -22,6 +22,7 @@ fn main() {
             let h = hash::hash(&files);
             println!("{}: {}", i, h);
         }
+
         println!("Time: {} milliseconds", now.elapsed().as_millis())
     }
 }
