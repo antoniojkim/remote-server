@@ -2,34 +2,36 @@ extern crate rmp_serde as rmps;
 extern crate rmpv;
 extern crate serde_json;
 
+use std::convert::TryFrom;
 use std::io::Read;
 use std::net::{TcpListener, TcpStream};
 
+use emacs_remote::handle::Handle;
 use emacs_remote::messages::index::IndexRequest;
 use emacs_remote::messages::messagetype::MessageType;
 
-fn handle_connection(mut stream: TcpStream) -> Result<(), Box<std::error::Error>> {
+fn handle_connection(mut stream: TcpStream) -> Result<(), ()> {
     let mut buf = [0; 1024];
     stream.read(&mut buf).unwrap();
 
-    let value: rmpv::Value = rmps::decode::from_read_ref(&buf)?;
-    println!("Request: {}", serde_json::to_string(&value)?);
+    let value: rmpv::Value = rmps::decode::from_read_ref(&buf).unwrap();
+    println!("Request: {}", serde_json::to_string(&value).unwrap());
 
     assert!(value.is_array());
-    let array = value.as_array().unwrap();
-
     assert!(value[0].is_u64());
-    let msgtype = value[0].as_u64().unwrap();
+    let msgtype = MessageType::try_from(value[0].as_u64().unwrap()).unwrap();
 
     match msgtype {
-        msgtype if msgtype == MessageType::IndexRequest as u64 => {
+        MessageType::IndexRequest => {
             let request: IndexRequest = rmp_serde::from_read_ref(&buf).unwrap();
-            println!("IndexRequest: {:?}", request);
+            request.handle();
+            return Ok(());
         }
-        _ => println!("Invalid type: {}", msgtype),
+        _ => {
+            println!("Invalid type: {:?}", msgtype);
+            return Err(());
+        }
     }
-
-    Ok(())
 }
 
 fn main() {
@@ -38,6 +40,8 @@ fn main() {
     for stream in listener.incoming() {
         let stream = stream.unwrap();
 
-        handle_connection(stream);
+        if !handle_connection(stream).is_ok() {
+            println!("Failed to handle stream");
+        }
     }
 }
