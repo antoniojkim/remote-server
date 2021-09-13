@@ -13,11 +13,12 @@ rmp = "0.8.10"
 rmp-serde = "0.15.5"
 rmpv = { version = "0.4.7", features = ["with-serde"] }
 num_enum = "0.5.4"
+dirs = "3.0.2"
 
 [[bin]]
-name = "client"
+name = "emacs-remote-client"
 path = "src/client/main.rs"
 
 [[bin]]
-name = "server"
+name = "emacs-remote-server"
 path= "src/server/main.rs"

@@ -33,7 +33,7 @@ pub fn find<S: AsRef<OsStr>>(item: S, path: S) -> Result<Vec<String>, i32> {
             .arg(item)
             .arg(path)
             .output()
-            .expect("Failed to find Cargo");
+            .expect("Failed to find");
 
         let code = output.status.code().unwrap();
         if code == 0 {
