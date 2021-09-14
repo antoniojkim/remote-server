@@ -1,10 +1,14 @@
 extern crate dirs;
+extern crate flate2;
 extern crate rmp_serde as rmps;
 
 use std::fs;
 use std::io::Write;
 use std::net::TcpStream;
 use std::path::PathBuf;
+
+use flate2::write::GzEncoder;
+use flate2::Compression;
 
 use super::super::handle::Handle;
 use super::super::info::ServerInfo;
@@ -24,7 +28,15 @@ impl Handle for IndexRequest {
         index_path.push(server_info.server_path.clone());
         index_path.push(format!("index_{}.mp", h));
 
-        let buffer = rmps::encode::to_vec(&files).unwrap();
+        let mut e = GzEncoder::new(Vec::new(), Compression::default());
+        for file in &files {
+            e.write_all(file.as_bytes())
+                .expect(format!("Failed to write file: {}", file).as_str());
+            e.write_all(b";")
+                .expect(format!("Failed to write file: {}", file).as_str());
+        }
+        let buffer = e.finish().unwrap();
+
         if fs::write(index_path.as_path(), buffer).is_err() {
             return Err(());
         }
