@@ -15,6 +15,7 @@ rmpv = { version = "0.4.7", features = ["with-serde"] }
 num_enum = "0.5.4"
 dirs = "3.0.2"
 flate2 = "1.0.22"
+ssh = "0.1.4"
 
 [[bin]]
 name = "emacs-remote-client"

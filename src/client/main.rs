@@ -1,9 +1,11 @@
 extern crate rmp_serde as rmps;
+extern crate ssh;
 
 use std::convert::TryFrom;
 use std::io::{Read, Write};
 use std::net::TcpStream;
-use std::time::Instant;
+use std::thread;
+use std::time::{Duration, Instant};
 
 use emacs_remote::messages::index::IndexRequest;
 use emacs_remote::messages::messagetype::MessageType;
@@ -33,7 +35,7 @@ fn handle_response(stream: &mut &TcpStream) -> Result<(), ()> {
     }
 }
 
-fn main() {
+fn test_connection() {
     let mut client = TcpStream::connect("localhost:9130").unwrap();
 
     let request = IndexRequest::new(
@@ -55,3 +57,55 @@ fn main() {
         now.elapsed().as_millis()
     );
 }
+
+fn test_ssh() {
+    let now = Instant::now();
+
+    let mut session = ssh::Session::new().unwrap();
+    session.set_host("AML").unwrap();
+    session.parse_config(None).unwrap();
+    session.connect().unwrap();
+    println!("{:?}", session.is_server_known());
+    session.userauth_publickey_auto(None).unwrap();
+
+    println!(
+        "ssh connection established in {} milliseconds",
+        now.elapsed().as_millis()
+    );
+
+    for i in 0..10 {
+        thread::sleep(Duration::from_millis(10000));
+
+        let now = Instant::now();
+
+        let mut scp = session
+            .scp_new(
+                ssh::READ,
+                "/home/antonio/.emacs_remote/server/index_monolith.txt.gz",
+            )
+            .unwrap();
+        scp.init().unwrap();
+        loop {
+            match scp.pull_request().unwrap() {
+                ssh::Request::NEWFILE => {
+                    let mut buf: Vec<u8> = vec![];
+                    scp.accept_request().unwrap();
+                    scp.reader().read_to_end(&mut buf).unwrap();
+
+                    println!(
+                        "Took {} milliseconds to read file",
+                        now.elapsed().as_millis()
+                    );
+                    break;
+                }
+                ssh::Request::WARNING => {
+                    scp.deny_request().unwrap();
+                    break;
+                }
+                _ => scp.deny_request().unwrap(),
+            }
+        }
+    }
+}
+
+fn main() {}

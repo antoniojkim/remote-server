@@ -26,7 +26,7 @@ impl Handle for IndexRequest {
 
         let mut index_path = PathBuf::new();
         index_path.push(server_info.server_path.clone());
-        index_path.push(format!("index_{}.mp", h));
+        index_path.push(format!("{}.index", h));
 
         let mut e = GzEncoder::new(Vec::new(), Compression::default());
         for file in &files {

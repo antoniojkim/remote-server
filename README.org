@@ -1,0 +1,31 @@
+#+title: emacs-remote
+
+Emacs remote server akin to VS Code's remote server capabilities
+
+
+* Design Overview
+
+There are 3 components to the remote server design:
+- server-daemon
+- client-daemon
+- client-interface
+
+** Server Daemon
+
+This is a daemon that runs on the server side and continually listens for requests from the client daemon. It handles the requests accordingly and sends back an appropriate response.
+
+** Client Daemon
+
+This is a daemon that runs on the client side which maintains a connection with the server. It is responsible for forwarding requests from the client interface to the server daemon.
+
+It primarily exists to maintain the connection to the server. This is done for performance as the alternative would be waiting for a connection to be established every single time that a request or response is sent.
+
+It also exists to monitor the currently copied over files and makes sure to keep the files in sync
+- Idea is to check for modification every second (or so) and making updates as necessary
+- Can also attempt to sync on every write to buffer
+
+It is also responsible for shutting down the server daemon when it itself shuts down.
+
+** Client interface
+
+This is the interface that can be used to query items from the client daemon. A request is sent, the client daemon handles forwarding the request and subsequently forwards the response from the server daemon.
