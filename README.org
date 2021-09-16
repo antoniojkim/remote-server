@@ -6,13 +6,23 @@ Emacs remote server akin to VS Code's remote server capabilities
 * Design Overview
 
 There are 3 components to the remote server design:
-- server-daemon
-- client-daemon
 - client-interface
+- client-daemon
+- server-daemon
 
-** Server Daemon
+#+begin_src
+┌────────────────────┐                   ┌────────────────────┐                   ┌────────────────────┐
+│                    │                   │                    │ ----------------> │                    │
+│                    │                   │                    │ <---------------- │                    │
+│  client interface  │ ----------------> │    client daemon   │ ----------------> │    server daemon   │
+│                    │ <---------------- │                    │ <---------------- │                    │
+│                    │                   │                    │ ----------------> │                    │
+└────────────────────┘                   └────────────────────┘ <---------------- └────────────────────┘
+#+end_src
 
-This is a daemon that runs on the server side and continually listens for requests from the client daemon. It handles the requests accordingly and sends back an appropriate response.
+** Client interface
+
+This is the interface that can be used to query items from the client daemon. A request is sent, the client daemon handles forwarding the request and subsequently forwards the response from the server daemon.
 
 ** Client Daemon
 
@@ -26,6 +36,6 @@ It also exists to monitor the currently copied over files and makes sure to keep
 
 It is also responsible for shutting down the server daemon when it itself shuts down.
 
-** Client interface
+** Server Daemon
 
-This is the interface that can be used to query items from the client daemon. A request is sent, the client daemon handles forwarding the request and subsequently forwards the response from the server daemon.
+This is a daemon that runs on the server side and continually listens for requests from the client daemon. It handles the requests accordingly and sends back an appropriate response.
