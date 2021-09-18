@@ -18,9 +18,13 @@ flate2 = "1.0.22"
 ssh = "0.1.4"
 
 [[bin]]
-name = "emacs-remote-client"
-path = "src/client/main.rs"
+name = "emacs-remote-client-interface"
+path = "src/client/interface.rs"
 
 [[bin]]
-name = "emacs-remote-server"
-path= "src/server/main.rs"
+name = "emacs-remote-client-daemon"
+path = "src/client/daemon.rs"
+
+[[bin]]
+name = "emacs-remote-server-daemon"
+path = "src/server/daemon.rs"

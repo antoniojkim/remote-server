@@ -1,7 +1,7 @@
 use std::net::TcpStream;
 
-use crate::info::ServerInfo;
+use crate::structs::ServerDaemon;
 
-pub trait Handle {
-    fn handle(&self, stream: &mut TcpStream, server_info: &ServerInfo) -> Result<(), ()>;
+pub trait HandleServer {
+    fn handle(&self, stream: &mut TcpStream, server_daemon: &ServerDaemon) -> Result<(), ()>;
 }

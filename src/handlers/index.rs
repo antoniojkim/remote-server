@@ -10,13 +10,13 @@ use std::path::PathBuf;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 
-use super::super::handle::Handle;
-use super::super::info::ServerInfo;
+use super::super::handle::HandleServer;
 use super::super::messages::index::{IndexRequest, IndexResponse};
+use super::super::structs::ServerDaemon;
 use super::super::utils::{hash, shutil};
 
-impl Handle for IndexRequest {
-    fn handle(&self, stream: &mut TcpStream, server_info: &ServerInfo) -> Result<(), ()> {
+impl HandleServer for IndexRequest {
+    fn handle(&self, stream: &mut TcpStream, server_daemon: &ServerDaemon) -> Result<(), ()> {
         println!("IndexRequest: {:?}", self);
 
         let mut files = shutil::find("", &self.index_path).unwrap();
@@ -25,7 +25,7 @@ impl Handle for IndexRequest {
         let h = hash::hash(&files);
 
         let mut index_path = PathBuf::new();
-        index_path.push(server_info.server_path.clone());
+        index_path.push(server_daemon.server_path.clone());
         index_path.push(format!("{}.index", h));
 
         let mut e = GzEncoder::new(Vec::new(), Compression::default());
