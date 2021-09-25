@@ -1,9 +1,8 @@
 use std::clone::Clone;
-use std::{net::TcpStream, path::PathBuf};
 
 pub use serde::{Deserialize, Serialize};
 
-use super::messagetype::{MessageType, MessageTypeTrait};
+use crate::messages::messagetype::{MessageType, MessageTypeTrait};
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct IndexRequest {

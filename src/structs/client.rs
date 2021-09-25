@@ -2,15 +2,17 @@ extern crate rmp_serde as rmps;
 extern crate ssh;
 
 use std::convert::TryFrom;
-use std::io::{Read, Write};
-use std::net::{Incoming, TcpListener, TcpStream};
-use std::{fs, io};
+use std::fs;
+use std::io::Read;
+use std::net::{TcpListener, TcpStream};
 
-use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use crate::handle::HandleClientDaemon;
 use crate::messages::index::IndexRequest;
 use crate::messages::messagetype::{MessageType, MessageTypeTrait};
+use crate::utils;
 
 pub struct ClientDaemon {
     pub workspace: String,
@@ -48,38 +50,19 @@ impl ClientDaemon {
         }
     }
 
-    pub fn server_send<T: Serialize>(&mut self, message: &T) -> Result<(), ()> {
-        let buffer = rmps::encode::to_vec(&message).unwrap();
-        if self.server.write(&buffer).is_err() {
-            return Err(());
-        }
-        if self.server.flush().is_err() {
-            return Err(());
-        }
-        Ok(())
+    pub fn reset_server_connection(&mut self) {
+        self.server = TcpStream::connect(format!("localhost:{}", self.server_port)).unwrap();
     }
 
-    pub fn server_recv<'a, T>(&mut self) -> Result<T, ()>
+    pub fn server_send<T: Serialize>(&mut self, message: &T) -> Result<(), ()> {
+        return utils::stream::send(&mut self.server, message);
+    }
+
+    pub fn server_recv<T>(&mut self) -> Result<T, ()>
     where
-        T: Deserialize<'a> + MessageTypeTrait + Clone,
+        T: DeserializeOwned + MessageTypeTrait,
     {
-        let mut buf = [0; 1024];
-        self.server.read(&mut buf).unwrap();
-
-        let value: rmpv::Value = rmps::decode::from_read_ref(&buf).unwrap();
-        println!("Request: {}", serde_json::to_string(&value).unwrap());
-
-        if !value.is_array() || !value[0].is_u64() {
-            return Err(());
-        }
-        let msgtype = MessageType::try_from(value[0].as_u64().unwrap()).unwrap();
-        if msgtype != T::messagetype() {
-            return Err(());
-        }
-
-        // let result: T = rmp_serde::from_read_ref(&buf).unwrap();
-        // return Ok(result.clone());
-        return Err(());
+        return utils::stream::recv::<T>(&mut self.server);
     }
 
     pub fn update_index_hash(&mut self, hash: u64) {

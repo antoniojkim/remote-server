@@ -14,6 +14,7 @@ use crate::handle::{HandleClientDaemon, HandleServerDaemon};
 use crate::messages::index::{IndexRequest, IndexResponse};
 use crate::structs::client::ClientDaemon;
 use crate::structs::server::ServerDaemon;
+use crate::utils;
 use crate::utils::{hash, shutil};
 
 impl HandleClientDaemon for IndexRequest {
@@ -22,7 +23,7 @@ impl HandleClientDaemon for IndexRequest {
             return Err(());
         }
 
-        let response = client_daemon.server_recv::<IndexResponse>().unwrap();
+        let mut response = client_daemon.server_recv::<IndexResponse>().unwrap();
         // response.save(client_daemon.client_path);
 
         client_daemon.update_index_hash(response.hash);
@@ -30,6 +31,10 @@ impl HandleClientDaemon for IndexRequest {
         let mut local_index_path = PathBuf::new();
         local_index_path.push(client_daemon.client_path.clone());
         local_index_path.push(format!("{}.index", response.hash));
+
+        if utils::stream::send(stream, &mut response).is_err() {
+            return Err(());
+        }
 
         Ok(())
     }
