@@ -12,13 +12,13 @@ use std::path::PathBuf;
 
 use clap::{App, Arg};
 
-use emacs_remote::handle::HandleServer;
+use emacs_remote::handle::HandleServerDaemon;
 use emacs_remote::messages::index::IndexRequest;
 use emacs_remote::messages::messagetype::MessageType;
-use emacs_remote::structs::ServerDaemon;
+use emacs_remote::structs::server::ServerDaemon;
 use emacs_remote::version::VERSION;
 
-fn handle_connection(stream: &mut TcpStream, server_info: &ServerDaemon) -> Result<(), ()> {
+fn handle_connection(stream: &mut TcpStream, server_daemon: &mut ServerDaemon) -> Result<(), ()> {
     let mut buf = [0; 1024];
     stream.read(&mut buf).unwrap();
 
@@ -32,7 +32,7 @@ fn handle_connection(stream: &mut TcpStream, server_info: &ServerDaemon) -> Resu
     match msgtype {
         MessageType::IndexRequest => {
             let request: IndexRequest = rmp_serde::from_read_ref(&buf).unwrap();
-            return request.handle(stream, server_info);
+            return request.handle(stream, server_daemon);
         }
         _ => {
             println!("Invalid type: {:?}", msgtype);
@@ -75,20 +75,20 @@ fn main() {
 
     let matches = app.get_matches_from(env::args_os());
 
-    let server_daemon = ServerDaemon {
+    let mut server_daemon = ServerDaemon {
         server_path: matches.value_of("server_path").unwrap().to_string(),
+        port: matches.value_of("port").unwrap().to_string(),
     };
 
     let result = fs::create_dir_all(server_daemon.server_path.clone());
     assert!(result.is_ok());
 
-    let listener =
-        TcpListener::bind(format!("localhost:{}", matches.value_of("port").unwrap())).unwrap();
+    let listener = TcpListener::bind(format!("localhost:{}", server_daemon.port)).unwrap();
 
     for stream in listener.incoming() {
         let mut stream = stream.unwrap();
 
-        if !handle_connection(&mut stream, &server_daemon).is_ok() {
+        if handle_connection(&mut stream, &mut server_daemon).is_err() {
             println!("Failed to handle stream");
         }
     }

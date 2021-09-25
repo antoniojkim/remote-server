@@ -10,13 +10,33 @@ use std::path::PathBuf;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 
-use super::super::handle::HandleServer;
-use super::super::messages::index::{IndexRequest, IndexResponse};
-use super::super::structs::ServerDaemon;
-use super::super::utils::{hash, shutil};
+use crate::handle::{HandleClientDaemon, HandleServerDaemon};
+use crate::messages::index::{IndexRequest, IndexResponse};
+use crate::structs::client::ClientDaemon;
+use crate::structs::server::ServerDaemon;
+use crate::utils::{hash, shutil};
 
-impl HandleServer for IndexRequest {
-    fn handle(&self, stream: &mut TcpStream, server_daemon: &ServerDaemon) -> Result<(), ()> {
+impl HandleClientDaemon for IndexRequest {
+    fn handle(&self, stream: &mut TcpStream, client_daemon: &mut ClientDaemon) -> Result<(), ()> {
+        if client_daemon.server_send(&self).is_err() {
+            return Err(());
+        }
+
+        let response = client_daemon.server_recv::<IndexResponse>().unwrap();
+        // response.save(client_daemon.client_path);
+
+        client_daemon.update_index_hash(response.hash);
+
+        let mut local_index_path = PathBuf::new();
+        local_index_path.push(client_daemon.client_path.clone());
+        local_index_path.push(format!("{}.index", response.hash));
+
+        Ok(())
+    }
+}
+
+impl HandleServerDaemon for IndexRequest {
+    fn handle(&self, stream: &mut TcpStream, server_daemon: &mut ServerDaemon) -> Result<(), ()> {
         println!("IndexRequest: {:?}", self);
 
         let mut files = shutil::find("", &self.index_path).unwrap();
