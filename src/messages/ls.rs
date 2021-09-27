@@ -1,26 +1,30 @@
+use std::clone::Clone;
+
 pub use serde::{Deserialize, Serialize};
 
 use crate::messages::messagetype::{MessageType, MessageTypeTrait};
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct IndexRequest {
+pub struct LsRequest {
     message_type: u64,
+    // path of the directory
+    pub ls_path: String,
+    // hash computed by combining directory itself and contents
     pub prev_hash: u64,
-    pub index_path: String,
 }
 
-impl MessageTypeTrait for IndexRequest {
+impl MessageTypeTrait for LsRequest {
     fn messagetype() -> MessageType {
-        return MessageType::IndexRequest;
+        return MessageType::LsRequest;
     }
     fn is_valid(&self) -> bool {
         return self.message_type == (Self::messagetype() as u64);
     }
 }
-impl IndexRequest {
-    pub fn new(prev_hash: u64, index_path: String) -> IndexRequest {
-        IndexRequest {
-            message_type: IndexRequest::messagetype().into(),
+impl LsRequest {
+    pub fn new(prev_hash: u64, index_path: String) -> LsRequest {
+        LsRequest {
+            message_type: LsRequest::messagetype().into(),
             prev_hash,
             index_path,
         }
@@ -28,24 +32,24 @@ impl IndexRequest {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-pub struct IndexResponse {
+pub struct LsResponse {
     message_type: u64,
     pub hash: u64,
     pub path_to_index_file: String,
 }
 
-impl MessageTypeTrait for IndexResponse {
+impl MessageTypeTrait for LsResponse {
     fn messagetype() -> MessageType {
-        return MessageType::IndexResponse;
+        return MessageType::LsResponse;
     }
     fn is_valid(&self) -> bool {
         return self.message_type == (Self::messagetype() as u64);
     }
 }
-impl IndexResponse {
-    pub fn new(hash: u64, path_to_index_file: String) -> IndexResponse {
-        IndexResponse {
-            message_type: IndexResponse::messagetype().into(),
+impl LsResponse {
+    pub fn new(hash: u64, path_to_index_file: String) -> LsResponse {
+        LsResponse {
+            message_type: LsResponse::messagetype().into(),
             hash,
             path_to_index_file,
         }

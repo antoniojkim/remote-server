@@ -18,10 +18,19 @@ fn main() {
         .author("antoniojkim <contact@antoniojkim.com>")
         .about("Starts emacs remote client daemon")
         .arg(
-            Arg::with_name("workspace")
+            Arg::with_name("host")
+                .long("host")
+                .takes_value(true)
+                .required(true)
+                .help("Specifies the remote host to connect to. Host must exist in ~/.ssh/config"),
+        )
+        .arg(
+            Arg::with_name("workspace_path")
                 .short("w")
-                .long("workspace")
-                .help("Specifies the workspace to monitor"),
+                .long("workspace_path")
+                .takes_value(true)
+                .required(true)
+                .help("Specifies the path to workspace on the remote server"),
         )
         .arg(
             Arg::with_name("server_port")
@@ -48,11 +57,15 @@ fn main() {
     let matches = app.get_matches_from(env::args_os());
 
     let mut client_daemon = ClientDaemon::new(
+        matches.value_of("host").unwrap().to_string(),
         matches.value_of("workspace").unwrap().to_string(),
         matches.value_of("client_path").unwrap().to_string(),
         matches.value_of("client_port").unwrap().to_string(),
         matches.value_of("server_port").unwrap().to_string(),
-    );
+    )
+    .expect("Unable to create client daemon");
+
+    client_daemon.init();
 
     client_daemon.listen();
 }
