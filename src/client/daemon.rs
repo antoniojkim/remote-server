@@ -32,13 +32,13 @@ fn main() {
                 .required(true)
                 .help("Specifies the path to workspace on the remote server"),
         )
-        .arg(
-            Arg::with_name("server_port")
-                .short("sp")
-                .long("server_port")
-                .default_value("9130")
-                .help("Specifies the port that the server is listening on"),
-        )
+        // .arg(
+        //     Arg::with_name("server_port")
+        //         .short("sp")
+        //         .long("server_port")
+        //         .default_value("9130")
+        //         .help("Specifies the port that the server is listening on"),
+        // )
         .arg(
             Arg::with_name("client_port")
                 .short("cp")
@@ -58,14 +58,15 @@ fn main() {
 
     let mut client_daemon = ClientDaemon::new(
         matches.value_of("host").unwrap().to_string(),
-        matches.value_of("workspace").unwrap().to_string(),
+        matches.value_of("workspace_path").unwrap().to_string(),
         matches.value_of("client_path").unwrap().to_string(),
         matches.value_of("client_port").unwrap().to_string(),
-        matches.value_of("server_port").unwrap().to_string(),
+        // matches.value_of("server_port").unwrap().to_string(),
     )
     .expect("Unable to create client daemon");
 
     client_daemon.init();
+    println!("Client Daemon Initialized!")
 
-    client_daemon.listen();
+    // client_daemon.listen();
 }

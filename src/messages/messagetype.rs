@@ -5,12 +5,18 @@ use num_enum::{IntoPrimitive, TryFromPrimitive};
 #[derive(IntoPrimitive, TryFromPrimitive, Eq, PartialEq, Debug)]
 #[repr(u64)]
 pub enum MessageType {
-    // For indexing a project
+    // To test basic ping
+    PingRequest,
+    PingResponse,
+    // For getting shell output from server
+    ShellRequest,
+    // Response containing a path
+    PathResponse,
+
+    // Projectile commands
+    ProjectileInvalidCacheRequest,
     IndexRequest,
     IndexResponse,
-    // To get contents of directory
-    LsRequest,
-    LsResponse,
 }
 
 pub trait MessageTypeTrait {

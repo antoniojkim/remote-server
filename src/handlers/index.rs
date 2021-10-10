@@ -19,22 +19,22 @@ use crate::utils::{hash, shutil};
 
 impl HandleClientDaemon for IndexRequest {
     fn handle(&self, stream: &mut TcpStream, client_daemon: &mut ClientDaemon) -> Result<(), ()> {
-        if client_daemon.server_send(&self).is_err() {
-            return Err(());
-        }
+        // if client_daemon.server_send(&self).is_err() {
+        //     return Err(());
+        // }
 
-        let mut response = client_daemon.server_recv::<IndexResponse>().unwrap();
-        // response.save(client_daemon.client_path);
+        // let mut response = client_daemon.server_recv::<IndexResponse>().unwrap();
+        // // response.save(client_daemon.client_path);
 
-        client_daemon.update_index_hash(response.hash);
+        // client_daemon.update_index_hash(response.hash);
 
-        let mut local_index_path = PathBuf::new();
-        local_index_path.push(client_daemon.client_path.clone());
-        local_index_path.push(format!("{}.index", response.hash));
+        // let mut local_index_path = PathBuf::new();
+        // local_index_path.push(client_daemon.client_path.clone());
+        // local_index_path.push(format!("{}.index", response.hash));
 
-        if utils::stream::send(stream, &mut response).is_err() {
-            return Err(());
-        }
+        // if utils::stream::send(stream, &mut response).is_err() {
+        //     return Err(());
+        // }
 
         Ok(())
     }

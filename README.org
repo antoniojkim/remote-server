@@ -39,3 +39,15 @@ It is also responsible for shutting down the server daemon when it itself shuts 
 ** Server Daemon
 
 This is a daemon that runs on the server side and continually listens for requests from the client daemon. It handles the requests accordingly and sends back an appropriate response.
+
+* Integrating into Emacs
+
+** Core
+
+Add "advice" to following functions:
+- =find-file= (for modifying which file is opened)
+
+** Projectile
+
+Replaced the following ~defcustom~ functions:
+- =projectile-generic-command= (for getting the project index)

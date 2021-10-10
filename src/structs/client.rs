@@ -1,5 +1,5 @@
 extern crate rmp_serde as rmps;
-extern crate ssh;
+extern crate ssh2;
 
 use std::convert::TryFrom;
 use std::fs;
@@ -15,23 +15,24 @@ use crate::handle::HandleClientDaemon;
 use crate::messages::index::IndexRequest;
 use crate::messages::messagetype::{MessageType, MessageTypeTrait};
 use crate::utils;
+use crate::utils::ssh::SSHSession;
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize)]
 pub struct ClientDaemon {
     host: String,
     workspace: String,
     // connection info
     pub client_path: String,
     client_port: String,
-    server_port: String,
+    // server_port: String,
 
     // streams
-    #[serde(skip)]
-    server: Option<TcpStream>,
+    // #[serde(skip)]
+    // server: Option<TcpStream>,
 
     // ssh connection
     #[serde(skip)]
-    ssh_session: Option<ssh::Session>,
+    ssh_session: Option<SSHSession>,
 
     // state
     current_index_hash: u64,
@@ -43,7 +44,7 @@ impl ClientDaemon {
         workspace: String,
         client_path: String,
         client_port: String,
-        server_port: String,
+        // server_port: String,
     ) -> Result<ClientDaemon, ()> {
         let mut workspace_path = PathBuf::new();
         workspace_path.push(client_path.clone());
@@ -68,8 +69,8 @@ impl ClientDaemon {
             {
                 return Err(());
             }
-            client.client_port = client_port;
-            client.server_port = server_port;
+            // client.client_port = client_port;
+            // client.server_port = server_port;
             return Ok(client);
         }
 
@@ -78,8 +79,8 @@ impl ClientDaemon {
             workspace,
             client_path,
             client_port: client_port.clone(),
-            server_port: server_port.clone(),
-            server: None,
+            // server_port: server_port.clone(),
+            // server: None,
             ssh_session: None,
             // initialize state
             current_index_hash: 0,
@@ -87,72 +88,58 @@ impl ClientDaemon {
     }
 
     pub fn init(&mut self) {
-        self.reset_tcp_connection()
-            .expect("Unable to establish tcp connection");
+        // self.reset_tcp_connection()
+        //     .expect("Unable to establish tcp connection");
         self.reset_ssh_session()
             .expect("Unable to establish ssh connection");
     }
 
-    pub fn reset_tcp_connection(&mut self) -> Result<(), ()> {
-        let now = Instant::now();
+    // pub fn reset_tcp_connection(&mut self) -> Result<(), ()> {
+    //     let now = Instant::now();
 
-        // Establishing TCP connection with server
-        let result = TcpStream::connect(format!("localhost:{}", self.server_port));
-        if result.is_err() {
-            return Err(());
-        }
-        self.server = Some(result.unwrap());
+    //     // Establishing TCP connection with server
+    //     let result = TcpStream::connect(format!("localhost:{}", self.server_port));
+    //     if result.is_err() {
+    //         return Err(());
+    //     }
+    //     self.server = Some(result.unwrap());
 
-        println!(
-            "tcp connection established in {} milliseconds",
-            now.elapsed().as_millis()
-        );
+    //     println!(
+    //         "tcp connection established in {} milliseconds",
+    //         now.elapsed().as_millis()
+    //     );
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub fn reset_ssh_session(&mut self) -> Result<(), ()> {
-        let now = Instant::now();
-
-        // Establishing ssh connection with server
-        let mut session = ssh::Session::new().unwrap();
-        session.set_host(&self.host).unwrap();
-        session.parse_config(None).unwrap();
-        session.connect().unwrap();
-
-        if session.is_server_known().is_err() {
-            return Err(());
-        }
-        session.userauth_publickey_auto(None).unwrap();
-
-        self.ssh_session = Some(session);
-
-        println!(
-            "ssh connection established in {} milliseconds",
-            now.elapsed().as_millis()
-        );
-
+        self.ssh_session = match SSHSession::new(self.host.clone()) {
+            Ok(session) => Some(session),
+            Err(e) => {
+                return Err(());
+            }
+        };
         Ok(())
     }
 
-    pub fn server_send<T: Serialize>(&mut self, message: &T) -> Result<(), ()> {
-        if !self.server.is_some() {
-            self.reset_tcp_connection()
-                .expect("Unable to establish tcp connection");
-        }
-        return utils::stream::send(self.server.as_mut().unwrap(), message);
-    }
+    // pub fn server_send<T: Serialize>(&mut self, message: &T) -> Result<(), ()> {
+    //     if !self.server.is_some() {
+    //         self.reset_tcp_connection()
+    //             .expect("Unable to establish tcp connection");
+    //     }
+    //     return utils::stream::send(self.server.as_mut().unwrap(), message);
+    // }
 
-    pub fn server_recv<T>(&mut self) -> Result<T, ()>
-    where
-        T: DeserializeOwned + MessageTypeTrait,
-    {
-        if !self.server.is_some() {
-            self.reset_tcp_connection()
-                .expect("Unable to establish tcp connection");
-        }
-        return utils::stream::recv::<T>(self.server.as_mut().unwrap());
-    }
+    // pub fn server_recv<T>(&mut self) -> Result<T, ()>
+    // where
+    //     T: DeserializeOwned + MessageTypeTrait,
+    // {
+    //     if !self.server.is_some() {
+    //         self.reset_tcp_connection()
+    //             .expect("Unable to establish tcp connection");
+    //     }
+    //     return utils::stream::recv::<T>(self.server.as_mut().unwrap());
+    // }
 
     pub fn update_index_hash(&mut self, hash: u64) {
         self.current_index_hash = hash;
