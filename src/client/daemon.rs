@@ -66,7 +66,11 @@ fn main() {
     .expect("Unable to create client daemon");
 
     client_daemon.init();
-    println!("Client Daemon Initialized!")
+    println!("Client Daemon Initialized!");
+
+    for i in 1..10 {
+        client_daemon.shell("ls -al | tail -n +2 | awk '{print $1\" \"$NF}'");
+    }
 
     // client_daemon.listen();
 }

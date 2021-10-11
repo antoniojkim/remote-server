@@ -1,5 +1,6 @@
 use std::{
     fs,
+    io::Read,
     net::TcpStream,
     process::{Command, Stdio},
 };
@@ -89,5 +90,20 @@ impl SSHSession {
         self.session = Some(sess);
 
         Ok(())
+    }
+
+    pub fn shell(&mut self, cmd: &str) -> (i32, String) {
+        if self.session.is_none() {
+            let result = self.reset();
+            assert!(result.is_ok());
+            assert!(self.session.is_some());
+        }
+        let mut channel = self.session.as_ref().unwrap().channel_session().unwrap();
+        channel.exec(cmd).unwrap();
+        let mut s = String::new();
+        channel.read_to_string(&mut s).unwrap();
+        assert!(channel.wait_close().is_ok());
+
+        (channel.exit_status().unwrap(), s)
     }
 }

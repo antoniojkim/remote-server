@@ -8,12 +8,11 @@ use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::time::Instant;
 
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::handle::HandleClientDaemon;
 use crate::messages::index::IndexRequest;
-use crate::messages::messagetype::{MessageType, MessageTypeTrait};
+use crate::messages::messagetype::MessageType;
 use crate::utils;
 use crate::utils::ssh::SSHSession;
 
@@ -69,7 +68,7 @@ impl ClientDaemon {
             {
                 return Err(());
             }
-            // client.client_port = client_port;
+            client.client_port = client_port;
             // client.server_port = server_port;
             return Ok(client);
         }
@@ -120,6 +119,18 @@ impl ClientDaemon {
             }
         };
         Ok(())
+    }
+
+    pub fn shell(&mut self, cmd: &str) -> i32 {
+        let now = Instant::now();
+        let (status, output) = self
+            .ssh_session
+            .as_mut()
+            .unwrap()
+            .shell(format!("cd \"{}\"; {}", self.workspace, cmd).as_str());
+        println!("{}", output);
+        println!("Took {} milliseconds", now.elapsed().as_millis());
+        status
     }
 
     // pub fn server_send<T: Serialize>(&mut self, message: &T) -> Result<(), ()> {
