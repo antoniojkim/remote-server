@@ -21,9 +21,9 @@ pub struct ClientDaemon {
     host: String,
     workspace: String,
     // connection info
-    pub client_path: String,
+    pub emacs_remote_path: String,
     client_port: String,
-    // server_port: String,
+    server_port: String,
 
     // streams
     // #[serde(skip)]
@@ -41,12 +41,13 @@ impl ClientDaemon {
     pub fn new(
         host: String,
         workspace: String,
-        client_path: String,
+        emacs_remote_path: String,
         client_port: String,
-        // server_port: String,
+        server_port: String,
     ) -> Result<ClientDaemon, ()> {
         let mut workspace_path = PathBuf::new();
-        workspace_path.push(client_path.clone());
+        workspace_path.push(emacs_remote_path.clone());
+        workspace_path.push("client");
         fs::create_dir_all(workspace_path.clone()).expect("Unable to create client path");
 
         workspace_path.push("workspaces");
@@ -64,7 +65,7 @@ impl ClientDaemon {
 
             if client.host != host
                 || client.workspace != workspace
-                || client.client_path != client_path
+                || client.emacs_remote_path != emacs_remote_path
             {
                 return Err(());
             }
@@ -76,9 +77,9 @@ impl ClientDaemon {
         Ok(ClientDaemon {
             host,
             workspace,
-            client_path,
+            emacs_remote_path,
             client_port: client_port.clone(),
-            // server_port: server_port.clone(),
+            server_port: server_port.clone(),
             // server: None,
             ssh_session: None,
             // initialize state

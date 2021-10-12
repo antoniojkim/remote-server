@@ -42,35 +42,36 @@ fn handle_connection(stream: &mut TcpStream, server_daemon: &mut ServerDaemon) -
 }
 
 fn main() {
-    // Set up default server path
-    let mut default_server_path = PathBuf::new();
-    default_server_path.push(dirs::home_dir().unwrap());
-    default_server_path.push(".emacs_remote");
-    default_server_path.push("server");
+    // Set up default emacs_remote path
+    let mut default_path = PathBuf::new();
+    default_path.push(dirs::home_dir().unwrap());
+    default_path.push(".emacs_remote");
 
     let app = App::new("emacs-remote-server-daemon")
         .version(VERSION)
         .author("antoniojkim <contact@antoniojkim.com>")
         .about("Starts emacs remote server daemon")
         .arg(
-            Arg::with_name("workspace")
+            Arg::with_name("workspace_path")
                 .short("w")
-                .long("workspace")
-                .help("Specifies the workspace to monitor"),
+                .long("workspace_path")
+                .takes_value(true)
+                .required(true)
+                .help("Specifies the path to workspace on the remote server"),
         )
         .arg(
-            Arg::with_name("port")
+            Arg::with_name("emacs_remote_path")
                 .short("p")
-                .long("port")
-                .default_value("9130")
-                .help("Specifies the port to listen on"),
+                .long("emacs_remote_path")
+                .default_value(default_path.to_str().unwrap())
+                .help("Path to emacs-remote directory"),
         )
         .arg(
-            Arg::with_name("server_path")
-                .short("s")
-                .long("server_path")
-                .default_value(default_server_path.to_str().unwrap())
-                .help("Path to server directory"),
+            Arg::with_name("server_port")
+                .short("sp")
+                .long("server_port")
+                .default_value("9130")
+                .help("Specifies the port that the server is listening on"),
         );
 
     let matches = app.get_matches_from(env::args_os());
