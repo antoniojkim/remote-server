@@ -21,3 +21,7 @@ repos:
     hooks:
     -   id: fmt
     -   id: cargo-check
+-   repo: https://github.com/psf/black
+    rev: main
+    hooks:
+    -   id: black

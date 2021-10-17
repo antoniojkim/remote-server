@@ -1,5 +1,7 @@
 use std::env;
 use std::path::PathBuf;
+use std::thread::sleep;
+use std::time::Duration;
 
 use clap::{App, Arg};
 
@@ -24,52 +26,48 @@ fn main() {
                 .help("Specifies the remote host to connect to. Host must exist in ~/.ssh/config"),
         )
         .arg(
-            Arg::with_name("workspace_path")
+            Arg::with_name("workspace")
                 .short("w")
-                .long("workspace_path")
+                .long("workspace")
                 .takes_value(true)
                 .required(true)
                 .help("Specifies the path to workspace on the remote server"),
         )
         .arg(
             Arg::with_name("emacs_remote_path")
-                .short("p")
+                .short("r")
                 .long("emacs_remote_path")
                 .default_value(default_path.to_str().unwrap())
                 .help("Path to emacs-remote directory"),
         )
         .arg(
-            Arg::with_name("client_port")
-                .short("cp")
-                .long("client_port")
-                .default_value("9130")
-                .help("Specifies the port that the client will listen on"),
-        )
-        .arg(
-            Arg::with_name("server_port")
-                .short("sp")
-                .long("server_port")
-                .default_value("9130")
-                .help("Specifies the port that the server is listening on"),
+            Arg::with_name("daemon")
+                .short("d")
+                .long("daemon")
+                .required(false)
+                .takes_value(false)
+                .help("If true, starts the --daemon"),
         );
 
     let matches = app.get_matches_from(env::args_os());
 
-    let mut client_daemon = ClientDaemon::new(
-        matches.value_of("host").unwrap().to_string(),
-        matches.value_of("workspace_path").unwrap().to_string(),
-        matches.value_of("emacs_remote_path").unwrap().to_string(),
-        matches.value_of("client_port").unwrap().to_string(),
-        matches.value_of("server_port").unwrap().to_string(),
-    )
-    .expect("Unable to create client daemon");
+    if matches.is_present("daemon") {
+        let mut client_daemon = ClientDaemon::new(
+            matches.value_of("host").unwrap().to_string(),
+            matches.value_of("workspace").unwrap().to_string(),
+            matches.value_of("emacs_remote_path").unwrap().to_string(),
+        )
+        .expect("Unable to create client daemon");
 
-    client_daemon.init();
-    println!("Client Daemon Initialized!");
+        client_daemon.init();
+        println!("Client Daemon Initialized!");
 
-    for i in 1..10 {
-        client_daemon.shell("ls -al | tail -n +2 | awk '{print $1\" \"$NF}'");
+        client_daemon.listen();
+    } else {
+        // handle request case here
     }
 
-    // client_daemon.listen();
+    // for i in 1..10 {
+    //     client_daemon.shell("ls -al | tail -n +2 | awk '{print $1\" \"$NF}'");
+    // }
 }

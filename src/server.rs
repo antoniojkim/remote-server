@@ -52,45 +52,36 @@ fn main() {
         .author("antoniojkim <contact@antoniojkim.com>")
         .about("Starts emacs remote server daemon")
         .arg(
-            Arg::with_name("workspace_path")
+            Arg::with_name("workspace")
                 .short("w")
-                .long("workspace_path")
+                .long("workspace")
                 .takes_value(true)
                 .required(true)
                 .help("Specifies the path to workspace on the remote server"),
         )
         .arg(
             Arg::with_name("emacs_remote_path")
-                .short("p")
+                .short("r")
                 .long("emacs_remote_path")
                 .default_value(default_path.to_str().unwrap())
                 .help("Path to emacs-remote directory"),
         )
         .arg(
-            Arg::with_name("server_port")
-                .short("sp")
-                .long("server_port")
+            Arg::with_name("port")
+                .short("p")
+                .long("port")
                 .default_value("9130")
                 .help("Specifies the port that the server is listening on"),
         );
 
     let matches = app.get_matches_from(env::args_os());
 
-    let mut server_daemon = ServerDaemon {
-        server_path: matches.value_of("server_path").unwrap().to_string(),
-        port: matches.value_of("port").unwrap().to_string(),
-    };
+    let mut server_daemon = ServerDaemon::new(
+        matches.value_of("emacs_remote_path").unwrap().to_string(),
+        matches.value_of("port").unwrap().to_string(),
+        matches.value_of("workspace").unwrap().to_string(),
+    );
 
-    let result = fs::create_dir_all(server_daemon.server_path.clone());
-    assert!(result.is_ok());
-
-    let listener = TcpListener::bind(format!("localhost:{}", server_daemon.port)).unwrap();
-
-    for stream in listener.incoming() {
-        let mut stream = stream.unwrap();
-
-        if handle_connection(&mut stream, &mut server_daemon).is_err() {
-            println!("Failed to handle stream");
-        }
-    }
+    server_daemon.init();
+    server_daemon.listen();
 }

@@ -14,7 +14,9 @@ use crate::handle::HandleClientDaemon;
 use crate::messages::index::IndexRequest;
 use crate::messages::messagetype::MessageType;
 use crate::utils;
-use crate::utils::ssh::SSHSession;
+use crate::utils::drop_guard::DropGuard;
+use crate::utils::shutil::bash;
+use crate::utils::stcp::STCPSession;
 
 #[derive(Deserialize, Serialize)]
 pub struct ClientDaemon {
@@ -22,16 +24,16 @@ pub struct ClientDaemon {
     workspace: String,
     // connection info
     pub emacs_remote_path: String,
-    client_port: String,
-    server_port: String,
+    server_port: u32,
+    client_port: u32,
 
     // streams
     // #[serde(skip)]
     // server: Option<TcpStream>,
 
-    // ssh connection
+    // Secure TCP connection
     #[serde(skip)]
-    ssh_session: Option<SSHSession>,
+    session: Option<STCPSession>,
 
     // state
     current_index_hash: u64,
@@ -42,8 +44,6 @@ impl ClientDaemon {
         host: String,
         workspace: String,
         emacs_remote_path: String,
-        client_port: String,
-        server_port: String,
     ) -> Result<ClientDaemon, ()> {
         let mut workspace_path = PathBuf::new();
         workspace_path.push(emacs_remote_path.clone());
@@ -69,8 +69,6 @@ impl ClientDaemon {
             {
                 return Err(());
             }
-            client.client_port = client_port;
-            // client.server_port = server_port;
             return Ok(client);
         }
 
@@ -78,10 +76,10 @@ impl ClientDaemon {
             host,
             workspace,
             emacs_remote_path,
-            client_port: client_port.clone(),
-            server_port: server_port.clone(),
+            server_port: 0,
+            client_port: 0,
             // server: None,
-            ssh_session: None,
+            session: None,
             // initialize state
             current_index_hash: 0,
         })
@@ -90,8 +88,7 @@ impl ClientDaemon {
     pub fn init(&mut self) {
         // self.reset_tcp_connection()
         //     .expect("Unable to establish tcp connection");
-        self.reset_ssh_session()
-            .expect("Unable to establish ssh connection");
+        self.reset_ssh_session();
     }
 
     // pub fn reset_tcp_connection(&mut self) -> Result<(), ()> {
@@ -112,26 +109,29 @@ impl ClientDaemon {
     //     Ok(())
     // }
 
-    pub fn reset_ssh_session(&mut self) -> Result<(), ()> {
-        self.ssh_session = match SSHSession::new(self.host.clone()) {
-            Ok(session) => Some(session),
-            Err(e) => {
-                return Err(());
-            }
-        };
-        Ok(())
-    }
+    pub fn reset_ssh_session(&mut self) {
+        let client_netstat = bash("netstat -atun".to_string()).unwrap();
+        let server_netstat = bash(format!("ssh {} netstat -atun", self.host))
+            .expect("Unable to get netstat info from remote host");
 
-    pub fn shell(&mut self, cmd: &str) -> i32 {
-        let now = Instant::now();
-        let (status, output) = self
-            .ssh_session
-            .as_mut()
-            .unwrap()
-            .shell(format!("cd \"{}\"; {}", self.workspace, cmd).as_str());
-        println!("{}", output);
-        println!("Took {} milliseconds", now.elapsed().as_millis());
-        status
+        for port in 49152..65535 {
+            if self.client_port == 0 && !client_netstat.contains(&port.to_string()) {
+                self.client_port = port;
+            } else if self.server_port == 0 && !server_netstat.contains(&port.to_string()) {
+                self.server_port = port;
+            } else {
+                break;
+            }
+        }
+        assert!(self.server_port != 0);
+        assert!(self.client_port != 0);
+
+        self.session = Some(STCPSession::new(
+            self.host.clone(),
+            self.server_port,
+            self.client_port,
+            self.workspace.clone(),
+        ));
     }
 
     // pub fn server_send<T: Serialize>(&mut self, message: &T) -> Result<(), ()> {
@@ -153,12 +153,27 @@ impl ClientDaemon {
     //     return utils::stream::recv::<T>(self.server.as_mut().unwrap());
     // }
 
-    pub fn update_index_hash(&mut self, hash: u64) {
-        self.current_index_hash = hash;
-    }
-
     pub fn listen(&mut self) {
-        let receiver = TcpListener::bind(format!("localhost:{}", self.client_port)).unwrap();
+        let client_netstat = bash("netstat -atun".to_string()).unwrap();
+
+        let mut daemon_port: u32 = 0;
+        for port in 49152..65535 {
+            if self.client_port != port && !client_netstat.contains(&port.to_string()) {
+                daemon_port = port;
+                break;
+            }
+        }
+        assert!(daemon_port != 0);
+
+        let receiver = TcpListener::bind(format!("localhost:{}", daemon_port)).unwrap();
+
+        let mut daemon_file_path = PathBuf::new();
+        daemon_file_path.push(self.emacs_remote_path.clone());
+        daemon_file_path.push("client");
+        daemon_file_path.push("daemon.port");
+
+        fs::write(daemon_file_path.clone(), daemon_port.to_string())
+            .expect("Could not write daemon port to string");
 
         for stream in receiver.incoming() {
             let mut stream = stream.unwrap();

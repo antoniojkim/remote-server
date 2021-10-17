@@ -19,14 +19,11 @@ ssh2 = "0.9.3"
 ssh_config = "0.1.0"
 whoami = "1.1.5"
 
-[[bin]]
-name = "emacs-remote-client-interface"
-path = "src/client/interface.rs"
 
 [[bin]]
-name = "emacs-remote-client-daemon"
-path = "src/client/daemon.rs"
+name = "emacs-remote-client"
+path = "src/client.rs"
 
 [[bin]]
-name = "emacs-remote-server-daemon"
-path = "src/server/daemon.rs"
+name = "emacs-remote-server"
+path = "src/server.rs"

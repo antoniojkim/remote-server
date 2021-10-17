@@ -42,38 +42,38 @@ impl HandleClientDaemon for IndexRequest {
 
 impl HandleServerDaemon for IndexRequest {
     fn handle(&self, stream: &mut TcpStream, server_daemon: &mut ServerDaemon) -> Result<(), ()> {
-        println!("IndexRequest: {:?}", self);
+        // println!("IndexRequest: {:?}", self);
 
-        let mut files = shutil::find("", &self.index_path).unwrap();
-        files.sort();
+        // let mut files = shutil::find("", &self.index_path).unwrap();
+        // files.sort();
 
-        let h = hash::hash(&files);
+        // let h = hash::hash(&files);
 
-        let mut index_path = PathBuf::new();
-        index_path.push(server_daemon.server_path.clone());
-        index_path.push(format!("{}.index", h));
+        // let mut index_path = PathBuf::new();
+        // index_path.push(server_daemon.server_path.clone());
+        // index_path.push(format!("{}.index", h));
 
-        let mut e = GzEncoder::new(Vec::new(), Compression::default());
-        for file in &files {
-            e.write_all(file.as_bytes())
-                .expect(format!("Failed to write file: {}", file).as_str());
-            e.write_all(b";")
-                .expect(format!("Failed to write file: {}", file).as_str());
-        }
-        let buffer = e.finish().unwrap();
+        // let mut e = GzEncoder::new(Vec::new(), Compression::default());
+        // for file in &files {
+        //     e.write_all(file.as_bytes())
+        //         .expect(format!("Failed to write file: {}", file).as_str());
+        //     e.write_all(b";")
+        //         .expect(format!("Failed to write file: {}", file).as_str());
+        // }
+        // let buffer = e.finish().unwrap();
 
-        if fs::write(index_path.as_path(), buffer).is_err() {
-            return Err(());
-        }
+        // if fs::write(index_path.as_path(), buffer).is_err() {
+        //     return Err(());
+        // }
 
-        let response = IndexResponse::new(
-            h,                                        // hash
-            index_path.to_str().unwrap().to_string(), // path_to_index_file
-        );
+        // let response = IndexResponse::new(
+        //     h,                                        // hash
+        //     index_path.to_str().unwrap().to_string(), // path_to_index_file
+        // );
 
-        let buffer = rmps::encode::to_vec(&response).unwrap();
-        stream.write(&buffer).unwrap();
-        stream.flush().unwrap();
+        // let buffer = rmps::encode::to_vec(&response).unwrap();
+        // stream.write(&buffer).unwrap();
+        // stream.flush().unwrap();
 
         Ok(())
     }

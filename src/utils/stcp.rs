@@ -7,25 +7,27 @@ use std::time::Duration;
 
 // Secure TCP connection module
 pub struct STCPSession {
-    host: String,        // ssh remote host name, must be defined in ~/.ssh/config
-    client_port: String, // local port for client to connect to
-    server_port: String, // remote port for server to listen on
-    workspace: String,   // remote workspace to monitor
+    host: String,      // ssh remote host name, must be defined in ~/.ssh/config
+    server_port: u32,  // port to connect and listen to
+    client_port: u32,  // port to connect and listen to
+    workspace: String, // remote workspace to monitor
 
     ssh_thread: Option<JoinHandle<()>>,
     ssh_restart_process: Arc<AtomicBool>,
 }
 
 impl STCPSession {
-    pub fn new(host: String, client_port: String, server_port: String, workspace: String) {
-        let session = STCPSession {
+    pub fn new(host: String, server_port: u32, client_port: u32, workspace: String) -> STCPSession {
+        let mut session = STCPSession {
             host,
-            client_port,
             server_port,
+            client_port,
             workspace,
             ssh_thread: None,
             ssh_restart_process: Arc::new(AtomicBool::new(true)),
         };
+        session.start_ssh();
+        session
     }
 
     pub fn start_ssh(&mut self) {
@@ -35,8 +37,8 @@ impl STCPSession {
 
         let host = self.host.clone();
         let workspace = self.workspace.clone();
-        let client_port = self.client_port.clone();
-        let server_port = self.server_port.clone();
+        let server_port = self.server_port;
+        let client_port = self.client_port;
         let ssh_restart_process = self.ssh_restart_process.clone();
 
         self.ssh_thread = Some(spawn(move || {
@@ -47,10 +49,8 @@ impl STCPSession {
                     .arg(format!("{}:localhost:{}", client_port, server_port))
                     .arg(host.clone())
                     .arg(format!(
-                        "{}/bin/server -w {} -p {}",
-                        "", // emacs_remote_path
-                        workspace,
-                        server_port,
+                        "~/.emacs_remote/bin/emacs-remote-server -w {} -p {}",
+                        workspace, server_port,
                     ))
                     .spawn()
                     .expect("Failed to start ssh server");
