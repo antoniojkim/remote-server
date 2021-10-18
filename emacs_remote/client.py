@@ -4,7 +4,7 @@ import argparse
 import os
 from pathlib import Path
 
-from .client.daemon import ClientDaemon
+from client.daemon import ClientDaemon
 
 
 def main(args):
@@ -32,12 +32,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--host",
         type=str,
+        required=True,
         help="Remote host to run on. Host must exist in ~/.ssh/config",
     )
     parser.add_argument(
         "-w",
         "--workspace",
         type=str,
+        required=True,
         help="Path to the desired workspace",
     )
     main(parser.parse_args())
