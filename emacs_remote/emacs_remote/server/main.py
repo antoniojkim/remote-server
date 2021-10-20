@@ -4,15 +4,15 @@ import argparse
 import os
 from pathlib import Path
 
-from server.daemon import ServerDaemon
+from .daemon import ServerDaemon
 
 
-def main(args):
+def run(args):
     with ServerDaemon(args.emacs_remote_path, args.workspace, args.ports) as daemon:
         daemon.listen()
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(
         "emacs-remote-server",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -37,4 +37,8 @@ if __name__ == "__main__":
         required=True,
         help="Ports to listen on",
     )
-    main(parser.parse_args())
+    run(parser.parse_args())
+
+
+if __name__ == "__main__":
+    main()

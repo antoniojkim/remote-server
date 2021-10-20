@@ -27,13 +27,18 @@ class ClientDaemon:
         self.client_tcps = []
         self.num_client_tcps = 1
 
-    def run_ssh_connection(self, client_ports):
-        terminate_event = Event()
+    def register_thread(self, target):
+        target.terminate = Event()
+        thread = Thread(target=target)
+        thread.start()
 
+        self.threads.append((target, thread))
+
+    def run_ssh_connection(self, client_ports):
         def target():
             retries = 0
 
-            while not terminate_event.is_set() and self.exceptions.empty():
+            while not target.terminate.is_set() and self.exceptions.empty():
                 server_ports = [
                     str(random.randint(9130, 65535)) for port in client_ports
                 ]
@@ -53,12 +58,10 @@ class ClientDaemon:
                     stderr=subprocess.PIPE,
                 )
 
-                while True:
+                while not target.terminate.is_set():
                     sleep(2)
                     code = server.poll()
                     if code is None:
-                        if terminate_event.is_set():
-                            return
                         retries = 0
                     elif code != 0:
                         if retries >= 5:
@@ -66,10 +69,7 @@ class ClientDaemon:
                         retries += 1
                         break
 
-        thread = Thread(target=target)
-        thread.start()
-
-        self.threads.append((thread, terminate_event))
+        self.register_thread(target)
 
     def listen(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -108,6 +108,6 @@ class ClientDaemon:
         for client_tcp in self.client_tcps:
             client_tcp.__exit__(*args)
 
-        for thread, terminate_event in self.threads:
-            terminate_event.set()
+        for target, thread in self.threads:
+            target.terminate.set()
             thread.join()

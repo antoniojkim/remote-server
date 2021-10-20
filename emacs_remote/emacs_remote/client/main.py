@@ -4,10 +4,10 @@ import argparse
 import os
 from pathlib import Path
 
-from client.daemon import ClientDaemon
+from .daemon import ClientDaemon
 
 
-def main(args):
+def run(args):
     if args.daemon:
         with ClientDaemon(args.emacs_remote_path, args.host, args.workspace) as daemon:
             daemon.listen()
@@ -15,7 +15,7 @@ def main(args):
         pass
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(
         "emacs-remote-client",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -42,4 +42,8 @@ if __name__ == "__main__":
         required=True,
         help="Path to the desired workspace",
     )
-    main(parser.parse_args())
+    run(parser.parse_args())
+
+
+if __name__ == "__main__":
+    main()
