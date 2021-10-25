@@ -9,7 +9,7 @@ from .daemon import ServerDaemon
 
 def run(args):
     with ServerDaemon(args.emacs_remote_path, args.workspace, args.ports) as daemon:
-        daemon.listen()
+        pass
 
 
 def main():

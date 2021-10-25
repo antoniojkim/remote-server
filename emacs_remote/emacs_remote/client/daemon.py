@@ -6,8 +6,8 @@ import random
 import subprocess
 from time import sleep
 from pathlib import Path
-from threading import Event, Thread
-from queue import Queue
+from threading import Barrier, Event, Thread
+from queue import Queue, Empty
 
 
 class ClientDaemon:
@@ -20,25 +20,69 @@ class ClientDaemon:
         self.client_path = self.emacs_remote_path.joinpath("client")
         self.client_path.mkdir(parents=True, exist_ok=True)
 
+        self.num_clients = 1
+
+        self.client_barrier = Barrier(self.num_clients + 1)
+        self.client_threads = []
+        self.requests = Queue()
+
+        self.requests.put("ls")
+
+        self.server = None
+
         self.exceptions = Queue()
 
-        self.threads = []
+    def handle_request(self, session, request):
+        print("Request:", request)
 
-        self.client_tcps = []
-        self.num_client_tcps = 1
+        session.send(request.encode("utf-8"))
+        data = session.recv(1024)
+        print("Response:", data.decode("utf-8"))
 
-    def register_thread(self, target):
-        target.terminate = Event()
-        thread = Thread(target=target)
-        thread.start()
+    def reset_ssh_connection(self):
+        print(f"Establishing ssh connection with {self.host}...")
 
-        self.threads.append((target, thread))
+        client_ports = [None for i in range(self.num_clients)]
 
-    def run_ssh_connection(self, client_ports):
-        def target():
-            retries = 0
+        def handler(index: int, terminate: Event):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("localhost", 0))
+                port = str(s.getsockname()[1])
 
-            while not target.terminate.is_set() and self.exceptions.empty():
+                print(f"Port {i}: {port}")
+                client_ports[index] = port
+                self.client_barrier.wait()
+                self.client_barrier.wait()
+
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
+                    client.connect(("localhost", int(port)))
+
+                    while not terminate.is_set():
+                        try:
+                            request = self.requests.get(timeout=2)
+                            self.handle_request(client, request)
+                        except Empty:
+                            pass
+
+        for thread, terminate in self.client_threads:
+            terminate.set()
+            thread.join()
+
+        self.client_threads.clear()
+        for i in range(self.num_clients):
+            terminate = Event()
+            thread = Thread(target=handler, args=(i, terminate))
+            thread.start()
+            self.client_threads.append((thread, terminate))
+
+        self.client_barrier.wait()
+        assert all(port is not None for port in client_ports)
+
+        if self.server:
+            self.server.terminate()
+
+        try:
+            for i in range(1, 6):
                 server_ports = [
                     str(random.randint(9130, 65535)) for port in client_ports
                 ]
@@ -52,24 +96,30 @@ class ClientDaemon:
                     f"--ports {' '.join(server_ports)}"
                 )
 
-                server = subprocess.Popen(
+                self.server = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                 )
 
-                while not target.terminate.is_set():
-                    sleep(2)
-                    code = server.poll()
-                    if code is None:
-                        retries = 0
-                    elif code != 0:
-                        if retries >= 5:
-                            return
-                        retries += 1
-                        break
+                try:
+                    code = self.server.wait(timeout=i + 1)  # wait for server to come up
 
-        self.register_thread(target)
+                    outs, errs = self.server.communicate(timeout=15)
+                    print(outs.decode("utf-8"))
+                    print(errs.decode("utf-8"))
+                    print(f"Error {code}. Retrying ssh connection...")
+                    if i < 5:
+                        sleep(5 * i)
+
+                except subprocess.TimeoutExpired:  # means server started up
+                    print("ssh connection established!")
+                    break
+            else:
+                raise RuntimeError("Unable to start server")
+
+        finally:
+            self.client_barrier.wait()
 
     def listen(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -92,22 +142,15 @@ class ClientDaemon:
                 daemon_port.unlink()
 
     def __enter__(self):
-        ports = []
-        for i in range(self.num_client_tcps):
-            client_tcp = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_tcp.__enter__()
-            client_tcp.bind(("localhost", 0))
-            ports.append(str(client_tcp.getsockname()[1]))
-            self.client_tcps.append(client_tcp)
+        self.reset_ssh_connection()
 
-        self.run_ssh_connection(ports)
-
+        print("Client Daemon Initialized!")
         return self
 
     def __exit__(self, *args):
-        for client_tcp in self.client_tcps:
-            client_tcp.__exit__(*args)
-
-        for target, thread in self.threads:
-            target.terminate.set()
+        for thread, terminate in self.client_threads:
+            terminate.set()
             thread.join()
+
+        if self.server:
+            self.server.terminate()
