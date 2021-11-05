@@ -5,3 +5,6 @@ Cargo.lock
 
 # Python ignore
 *.pyc
+/emacs_remote/build/
+/emacs_remote/dist/
+/emacs_remote/emacs_remote.egg-info/

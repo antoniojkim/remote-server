@@ -9,12 +9,11 @@ setup(
     author="Antonio Kim",
     author_email="antoniok@antoniojkim.com",
     url="https://github.com/antoniojkim/emacs-remote/tree/main/emacs_remote",
-    package_dir={"": "emacs_remote"},
-    packages=find_packages(where="emacs_remote"),
+    packages=find_packages(),
     entry_points={
         "console_scripts": [
-            "emacs-remote-client = client.main:main",
-            "emacs-remote-server = server.main:main",
+            "emacs-remote-client = emacs_remote.client.main:main",
+            "emacs-remote-server = emacs_remote.server.main:main",
         ]
     },
 )
