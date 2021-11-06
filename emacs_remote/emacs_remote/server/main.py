@@ -4,16 +4,15 @@ import argparse
 import os
 from pathlib import Path
 
-# from ..messages.startup import SERVER_STARTUP_MSG
+from .daemon import ServerDaemon
+from ..messages.startup import SERVER_STARTUP_MSG
 
 
 def run(args):
     print("Ports: ", args.ports, flush=True)
-    from emacs_remote.server.daemon import ServerDaemon
 
     with ServerDaemon(args.emacs_remote_path, args.workspace, args.ports) as daemon:
         print(SERVER_STARTUP_MSG, flush=True)
-        pass
 
 
 def main():

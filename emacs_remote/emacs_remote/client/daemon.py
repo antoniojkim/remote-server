@@ -3,6 +3,7 @@
 import os
 import random
 import socket
+import signal
 import subprocess
 from time import sleep
 from pathlib import Path
@@ -56,13 +57,12 @@ class ClientDaemon:
         client_ports = [None for i in range(self.num_clients)]
 
         def handler(index: int, terminate: Event):
-            # with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            #     s.bind(("localhost", 0))
-            #     port = str(s.getsockname()[1])
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("localhost", 0))
+                port = str(s.getsockname()[1])
 
-            port = str(random.randint(9130, 40000))
-            print(f"Port {index}: {port}")
-            client_ports[index] = port
+                print(f"Port {index}: {port}")
+                client_ports[index] = port
 
             self.client_barrier.wait()
             self.client_barrier.wait()
@@ -118,7 +118,7 @@ class ClientDaemon:
 
             for line in self.server.stdout:
                 line = line.decode("utf-8").strip()
-                print(f">>> {line}")
+                # print(f">>> {line}")
                 if line == SERVER_STARTUP_MSG:
                     break
 
@@ -182,14 +182,16 @@ class ClientDaemon:
             thread.join()
 
         if self.server:
-            self.server.terminate()
+            self.server.send_signal(signal.SIGINT)
 
             code = self.server.wait()  # wait for server to come up
-            print(f"Error {code}.")
 
-            outs, errs = self.server.communicate(timeout=15)
-            print(f"{' stdout ':=^50}")
-            print(outs.decode("utf-8"))
-            print(f"{' stderr ':=^50}")
-            print(errs.decode("utf-8"))
-            print(f"{'':=^50}")
+            if code != 0:
+                print(f"Error {code}.")
+
+                outs, errs = self.server.communicate(timeout=15)
+                print(f"{' stdout ':=^50}")
+                print(outs.decode("utf-8"))
+                print(f"{' stderr ':=^50}")
+                print(errs.decode("utf-8"))
+                print(f"{'':=^50}")
