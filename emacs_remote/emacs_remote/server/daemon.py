@@ -1,4 +1,5 @@
 import multiprocessing
+import os
 import socket
 from pathlib import Path
 from time import sleep
@@ -9,16 +10,15 @@ from emacs_remote.messages.startup import SERVER_STARTUP_MSG
 
 class ServerDaemon:
     def __init__(self, emacs_remote_path, workspace, ports):
-        self.workspace = workspace
-        self.workspace_hash = utils.md5(workspace)
-        self.ports = ports
+        self.workspace = Path(workspace)
+        os.chdir(self.workspace.resolve())
 
-        self.server_tcps = []
+        self.ports = ports
 
         self.emacs_remote_path = Path(emacs_remote_path)
         self.emacs_remote_path.mkdir(parents=True, exist_ok=True)
         self.workspace_path = self.emacs_remote_path.joinpath(
-            "workspaces", self.workspace_hash
+            "workspaces", utils.md5(workspace)
         )
         self.workspace_path.mkdir(parents=True, exist_ok=True)
 

@@ -2,18 +2,19 @@
 
 import os
 import random
-import socket
 import signal
+import socket
 import subprocess
 from time import sleep
 from pathlib import Path
-from threading import Barrier, Event, Thread
+from threading import Event
 from queue import Queue, Empty
 
 import pexpect
 
-from emacs_remote import utils
-from emacs_remote.messages.startup import SERVER_STARTUP_MSG
+from .. import utils
+from ..messages.startup import SERVER_STARTUP_MSG
+from ..utils.stcp import SecureTCP
 
 
 class ClientDaemon:
@@ -30,17 +31,14 @@ class ClientDaemon:
             "workspaces", self.workspace_hash
         )
         self.workspace_path.mkdir(parents=True, exist_ok=True)
+        os.chdir(self.workspace_path.resolve())
 
         self.num_clients = num_clients
 
-        self.client_barrier = Barrier(self.num_clients + 1)
-        self.client_threads = []
         self.requests = Queue()
-
         self.requests.put("ls")
 
         self.server = None
-
         self.exceptions = Queue()
 
     def handle_request(self, session, request):
@@ -54,101 +52,30 @@ class ClientDaemon:
     def reset_ssh_connection(self):
         print(f"Establishing ssh connection with {self.host}...")
 
-        client_ports = [None for i in range(self.num_clients)]
+        def get_cmd(client_ports, server_ports):
+            return [
+                "~/.emacs_remote/bin/server.sh ",
+                f"--workspace {self.workspace} ",
+                f"--ports {' '.join(server_ports)}",
+            ]
 
-        def handler(index: int, terminate: Event):
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(("localhost", 0))
-                port = str(s.getsockname()[1])
+        def client_handler(socker):
+            pass
 
-                print(f"Port {index}: {port}")
-                client_ports[index] = port
-
-            self.client_barrier.wait()
-            self.client_barrier.wait()
-
-            print(f"Connecting to localhost:{port}...")
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client:
-                client.connect(("localhost", int(port)))
-                print(f"Connected to localhost:{port}")
-
-                # while not terminate.is_set():
-                #     try:
-                #         request = self.requests.get(timeout=2)
-                #         self.handle_request(client, request)
-                #     except Empty:
-                #         pass
-
-        for thread, terminate in self.client_threads:
-            terminate.set()
-            thread.join()
-
-        self.client_threads.clear()
-        for i in range(self.num_clients):
-            terminate = Event()
-            thread = Thread(target=handler, args=(i, terminate))
-            thread.start()
-            self.client_threads.append((thread, terminate))
-
-        self.client_barrier.wait()
-        assert all(port is not None for port in client_ports)
-
-        if self.server:
-            self.server.terminate()
-
-        def start_server(timeout):
-            server_ports = [str(random.randint(9130, 49151)) for port in client_ports]
-            cmd = ["ssh"]
-            for client_port, server_port in zip(client_ports, server_ports):
-                cmd.extend(["-L", f"{client_port}:localhost:{server_port}"])
-            cmd.append(self.host)
-            cmd.append(
-                "~/.emacs_remote/bin/server.sh "
-                f"--workspace {self.workspace} "
-                f"--ports {' '.join(server_ports)}"
-            )
-
-            print("cmd:", " ".join(cmd))
-
-            self.server = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-
-            for line in self.server.stdout:
+        def check_started(process):
+            for line in process.stdout:
                 line = line.decode("utf-8").strip()
-                # print(f">>> {line}")
                 if line == SERVER_STARTUP_MSG:
-                    break
-
-            if self.server.poll() is None:
-                print("ssh connection established!")
-                return True
-
-            code = self.server.wait(timeout=timeout)  # wait for server to come up
-            print(f"Error {code}.")
-
-            outs, errs = self.server.communicate(timeout=15)
-            print(f"{' stdout ':=^50}")
-            print(outs.decode("utf-8"))
-            print(f"{' stderr ':=^50}")
-            print(errs.decode("utf-8"))
-            print(f"{'':=^50}")
+                    return True
 
             return False
 
-        try:
-            for i in range(1, 6):
-                if start_server(timeout=i * 2 + 1):
-                    break
-
-                print(" Retrying ssh connection...")
-            else:
-                raise RuntimeError("Unable to start server")
-
-        finally:
-            self.client_barrier.wait()
+        self.server = SecureTCP(self.host, self.num_clients)
+        self.server.start(
+            get_cmd,
+            check_started,
+            client_handler,
+        )
 
     def listen(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -177,21 +104,5 @@ class ClientDaemon:
         return self
 
     def __exit__(self, *args):
-        for thread, terminate in self.client_threads:
-            terminate.set()
-            thread.join()
-
         if self.server:
-            self.server.send_signal(signal.SIGINT)
-
-            code = self.server.wait()  # wait for server to come up
-
-            if code != 0:
-                print(f"Error {code}.")
-
-                outs, errs = self.server.communicate(timeout=15)
-                print(f"{' stdout ':=^50}")
-                print(outs.decode("utf-8"))
-                print(f"{' stderr ':=^50}")
-                print(errs.decode("utf-8"))
-                print(f"{'':=^50}")
+            self.server.stop()
