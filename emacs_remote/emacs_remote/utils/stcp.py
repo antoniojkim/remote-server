@@ -6,8 +6,19 @@ from queue import Queue
 from threading import Barrier, Event, Thread
 from typing import Callable
 
+from .stcp_socket import SecureTCPSocket
+
 
 class SecureTCP:
+    """
+    Handles creating secure TCP connections with the host
+
+    Args:
+        host: the host to connect to
+            Note, the host must be able to used verbatim as `ssh {host}`
+        num_clients: the number of TCP connections to establish
+    """
+
     def __init__(self, host: str, num_clients: int = 1):
         self.host = host
         self.num_clients = num_clients
@@ -41,8 +52,8 @@ class SecureTCP:
                 return
 
             print(f"Connecting to localhost:{port}...")
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.connect(("localhost", int(port)))
+            with SecureTCPSocket as s:
+                s.connect("localhost", int(port))
                 print(f"Connected to localhost:{port}")
 
                 client_handler(s)

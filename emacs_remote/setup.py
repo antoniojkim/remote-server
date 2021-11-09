@@ -16,4 +16,5 @@ setup(
             "emacs-remote-server = emacs_remote.server.main:main",
         ]
     },
+    data_files=[("emacs_remote_scripts", ["scripts/server.sh"])],
 )

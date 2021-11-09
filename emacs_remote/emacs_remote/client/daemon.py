@@ -5,10 +5,11 @@ import random
 import signal
 import socket
 import subprocess
+import sys
 from time import sleep
 from pathlib import Path
 from threading import Event
-from queue import Queue, Empty
+from queue import Queue, Empty as EmptyQueue
 
 import pexpect
 
@@ -41,26 +42,45 @@ class ClientDaemon:
         self.server = None
         self.exceptions = Queue()
 
-    def handle_request(self, session, request):
+        self.terminate_queue = Queue()
+
+    def handle_request(self, request, socket):
         print("Request:", request)
 
-        session.send(request.encode("utf-8"))
-        data = session.recv(1024)
-        with self.client_path.joinpath("response.txt").open() as f:
-            f.write(f"Response: {data.decode('utf-8')}\n")
+        socket.sendall(request)
+        data = socket.recvall()
+        print(f"Response: {data}")
 
     def reset_ssh_connection(self):
+        if self.server:
+            self.server.stop()
+
         print(f"Establishing ssh connection with {self.host}...")
 
         def get_cmd(client_ports, server_ports):
-            return [
-                "~/.emacs_remote/bin/server.sh ",
-                f"--workspace {self.workspace} ",
-                f"--ports {' '.join(server_ports)}",
-            ]
+            cmd = []
+            # Add args
+            cmd.append(f'WORKSPACE="{self.workspace}"')
+            cmd.append(f'PORTS="{" ".join(server_ports)}"')
 
-        def client_handler(socker):
-            pass
+            script_path = Path(sys.prefix, "emacs_remote_scripts", "server.sh")
+
+            cmd.append("bash -s")
+            cmd.append("<")
+            cmd.append(str(script_path.resolve()))
+
+            return cmd
+
+        def client_handler(socket):
+            terminate_event = Event()
+            self.terminate_queue.put(terminate_event)
+
+            while not terminate_event.is_set():
+                try:
+                    request = self.requests.get(timeout=1)
+                    self.handle_request(request, socket)
+                except EmptyQueue as e:
+                    pass
 
         def check_started(process):
             for line in process.stdout:
@@ -104,5 +124,9 @@ class ClientDaemon:
         return self
 
     def __exit__(self, *args):
+        while not self.terminate_queue.empty():
+            terminate_event = self.terminate_queue.get()
+            terminate_event.set()
+
         if self.server:
             self.server.stop()

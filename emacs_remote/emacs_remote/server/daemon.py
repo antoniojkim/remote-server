@@ -4,8 +4,9 @@ import socket
 from pathlib import Path
 from time import sleep
 
-from emacs_remote import utils
-from emacs_remote.messages.startup import SERVER_STARTUP_MSG
+from .. import utils
+from ..messages.startup import SERVER_STARTUP_MSG
+from ..utils.stcp_socket import SecureTCPSocket
 
 
 class ServerDaemon:
@@ -27,22 +28,22 @@ class ServerDaemon:
 
     @staticmethod
     def listen(startup_barrier, port):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("localhost", int(port)))
+        with SecureTCPSocket() as s:
+            s.bind("localhost", int(port))
             startup_barrier.wait()
 
             s.listen()
             conn, addr = s.accept()
             print(f"Connection accepted from {addr}", flush=True)
-            # with conn:
-            #     while True:
-            #         data = conn.recv(1024)
-            #         if not data:
-            #             break
 
-            #         print(data.decode("utf-8"))
-            #         conn.send("Received".encore("utf-8"))
-            #
+            with conn:
+                while True:
+                    data = conn.recvall()
+                    if not data:
+                        break
+
+                    print(data)
+                    conn.sendall("Received")
 
     def __enter__(self):
         for port in self.ports:
