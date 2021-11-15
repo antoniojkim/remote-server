@@ -1,6 +1,7 @@
 import multiprocessing
 import os
 import socket
+import sys
 from pathlib import Path
 from time import sleep
 
@@ -28,22 +29,49 @@ class ServerDaemon:
 
     @staticmethod
     def listen(startup_barrier, port):
-        with SecureTCPSocket() as s:
-            s.bind("localhost", int(port))
-            startup_barrier.wait()
+        with open("/tmp/server.log", "w") as f, SecureTCPSocket() as s:
+            f.write("ENTER\n")
+            f.flush()
+            try:
+                s.bind("localhost", int(port))
 
-            s.listen()
-            conn, addr = s.accept()
-            print(f"Connection accepted from {addr}", flush=True)
+                f.write(f"BOUND on port {port}\n")
+                f.flush()
 
-            with conn:
-                while True:
-                    data = conn.recvall()
-                    if not data:
-                        break
+                startup_barrier.wait()
 
-                    print(data)
-                    conn.sendall("Received")
+                f.write("LISTENING\n")
+                f.flush()
+
+                s.listen()
+
+                f.write("ACCEPTING\n")
+                f.flush()
+
+                conn, addr = s.accept()
+                print(f"Connection accepted from {addr}", flush=True)
+                f.write(f"Connection accepted from {addr}\n")
+                f.flush()
+
+                with conn:
+                    while True:
+                        data = conn.recvall()
+                        if not data:
+                            break
+
+                        print(data, flush=True)
+                        f.write(f"data:\n{data}\n")
+                        f.flush()
+                        conn.sendall("Received")
+            except Exception as e:
+                print(e, file=sys.stderr, flush=True)
+                f.write("Exception:\n")
+                f.write(str(e))
+                f.write("\n")
+                f.flush()
+            finally:
+                f.write("DONE\n")
+                f.flush()
 
     def __enter__(self):
         for port in self.ports:

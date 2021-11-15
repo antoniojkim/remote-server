@@ -85,6 +85,7 @@ class ClientDaemon:
         def check_started(process):
             for line in process.stdout:
                 line = line.decode("utf-8").strip()
+                # print(line)
                 if line == SERVER_STARTUP_MSG:
                     return True
 

@@ -2,6 +2,7 @@ import random
 import signal
 import socket
 import subprocess
+import time
 from queue import Queue
 from threading import Barrier, Event, Thread
 from typing import Callable
@@ -51,8 +52,10 @@ class SecureTCP:
                 # failed to establish connection
                 return
 
+            time.sleep(1)
+
             print(f"Connecting to localhost:{port}...")
-            with SecureTCPSocket as s:
+            with SecureTCPSocket() as s:
                 s.connect("localhost", int(port))
                 print(f"Connected to localhost:{port}")
 
@@ -128,15 +131,15 @@ class SecureTCP:
         if self.process:
             self.process.send_signal(signal.SIGINT)
             code = self.process.wait(timeout=10)
+            outs, errs = self.process.communicate(timeout=15)
+            print(f"{' stdout ':=^50}")
+            print(outs.decode("utf-8"))
+            print(f"{' stderr ':=^50}")
+            print(errs.decode("utf-8"))
+            print(f"{'':=^50}")
+
             if code != 0:
                 print(f"Failed to stop server. Error code {code}")
-
-                outs, errs = self.process.communicate(timeout=15)
-                print(f"{' stdout ':=^50}")
-                print(outs.decode("utf-8"))
-                print(f"{' stderr ':=^50}")
-                print(errs.decode("utf-8"))
-                print(f"{'':=^50}")
             else:
                 print("Successfully cleaned up server process!")
 

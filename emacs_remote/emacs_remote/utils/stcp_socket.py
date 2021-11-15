@@ -14,6 +14,7 @@ class SecureTCPSocket:
 
     def __enter__(self):
         self.socket.__enter__()
+        return self
 
     def __exit__(self, *args):
         self.socket.__exit__(*args)
@@ -45,9 +46,12 @@ class SecureTCPSocket:
         compressed = zlib.compress(packed)
 
         self.socket.sendall(compressed)
+        # writer = self.socket.makefile("bw")
+        # writer.write(compressed)
+        # writer.flush()
 
-    def recvall(self, cls=None):
-        data = ""
+    def recvall(self, size=None, cls=None):
+        data = self.socket.recv(1024)
 
         decompressed = zlib.decompress(data)
         data = msgpack.unpackb(decompressed)
