@@ -35,10 +35,12 @@ class ServerDaemon:
             try:
                 s.bind("localhost", int(port))
 
+                print(SERVER_STARTUP_MSG, flush=True)
+
                 f.write(f"BOUND on port {port}\n")
                 f.flush()
 
-                startup_barrier.wait()
+                # startup_barrier.wait()
 
                 f.write("LISTENING\n")
                 f.flush()
@@ -74,14 +76,15 @@ class ServerDaemon:
                 f.flush()
 
     def __enter__(self):
-        for port in self.ports:
-            p = multiprocessing.Process(
-                target=ServerDaemon.listen, args=(self.startup_barrier, port)
-            )
-            p.start()
-            self.processes.append(p)
+        ServerDaemon.listen(self.startup_barrier, self.ports[0])
+        # for port in self.ports:
+        #     p = multiprocessing.Process(
+        #         target=ServerDaemon.listen, args=(self.startup_barrier, port)
+        #     )
+        #     p.start()
+        #     self.processes.append(p)
 
-        self.startup_barrier.wait()
+        # self.startup_barrier.wait()
         return self
 
     def __exit__(self, *args):
