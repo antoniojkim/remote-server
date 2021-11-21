@@ -1,21 +1,41 @@
+import logging
 import multiprocessing
 import os
 import socket
 import sys
 from pathlib import Path
+from queue import Queue, Empty as EmptyQueue
+from threading import Barrier, Event, Thread
 from time import sleep
 
 from .. import utils
 from ..messages.startup import SERVER_STARTUP_MSG
 from ..utils.stcp_socket import SecureTCPSocket
+from ..utils.logging import get_level
 
 
 class ServerDaemon:
-    def __init__(self, emacs_remote_path, workspace, ports):
+    def __init__(
+        self,
+        emacs_remote_path: str,
+        workspace: str,
+        ports: str,
+        logging_level: str = "info",
+    ):
+        """
+        Server daemon process that handles remote computation in the background
+
+        Args:
+            emacs_remote_path: Path to the emacs remote directory
+            workspace: Path to the workspace to monitor
+            ports: Ports to listen on
+            logging_level: The logging level
+        """
         self.workspace = Path(workspace)
         os.chdir(self.workspace.resolve())
 
         self.ports = ports
+        self.logging_level = get_level(logging_level)
 
         self.emacs_remote_path = Path(emacs_remote_path)
         self.emacs_remote_path.mkdir(parents=True, exist_ok=True)
@@ -24,70 +44,55 @@ class ServerDaemon:
         )
         self.workspace_path.mkdir(parents=True, exist_ok=True)
 
-        self.startup_barrier = multiprocessing.Barrier(len(self.ports) + 1)
-        self.processes = []
+        self.startup_barrier = Barrier(len(self.ports) + 1)
+        self.threads = []
+        self.terminate_events = Queue()
 
-    @staticmethod
-    def listen(startup_barrier, port):
-        with open("/tmp/server.log", "w") as f, SecureTCPSocket() as s:
-            f.write("ENTER\n")
-            f.flush()
+    def listen(self, port):
+        terminate = Event()
+        self.terminate_events.put(terminate)
+
+        logger = logging.getLogger(f"server.{port}")
+        logger.setLevel(self.logging_level)
+
+        with SecureTCPSocket() as s:
             try:
                 s.bind("localhost", int(port))
+                logger.debug(f"Bound socket to localhost:{port}")
 
-                print(SERVER_STARTUP_MSG, flush=True)
-
-                f.write(f"BOUND on port {port}\n")
-                f.flush()
-
-                # startup_barrier.wait()
-
-                f.write("LISTENING\n")
-                f.flush()
+                self.startup_barrier.wait()
 
                 s.listen()
-
-                f.write("ACCEPTING\n")
-                f.flush()
+                logger.debug(f"Listening on port {port}")
 
                 conn, addr = s.accept()
-                print(f"Connection accepted from {addr}", flush=True)
-                f.write(f"Connection accepted from {addr}\n")
-                f.flush()
+                logger.debug(f"Connection accepted from {addr}")
 
                 with conn:
-                    while True:
-                        data = conn.recvall()
+                    while not terminate.is_set():
+                        data = conn.recvall(timeout=2)
                         if not data:
-                            break
+                            continue
 
                         print(data, flush=True)
-                        f.write(f"data:\n{data}\n")
-                        f.flush()
                         conn.sendall("Received")
+
             except Exception as e:
-                print(e, file=sys.stderr, flush=True)
-                f.write("Exception:\n")
-                f.write(str(e))
-                f.write("\n")
-                f.flush()
-            finally:
-                f.write("DONE\n")
-                f.flush()
+                logger.error(str(e))
 
     def __enter__(self):
-        ServerDaemon.listen(self.startup_barrier, self.ports[0])
-        # for port in self.ports:
-        #     p = multiprocessing.Process(
-        #         target=ServerDaemon.listen, args=(self.startup_barrier, port)
-        #     )
-        #     p.start()
-        #     self.processes.append(p)
+        for port in self.ports:
+            thread = Thread(target=self.listen, args=(port,))
+            thread.start()
+            self.threads.append(threa)
 
-        # self.startup_barrier.wait()
+        self.startup_barrier.wait()
         return self
 
     def __exit__(self, *args):
-        for p in self.processes:
-            p.terminate()
-            p.join()
+        while not self.terminate_events.empty():
+            event = self.terminate_events.get()
+            event.set()
+
+        for thread in self.threads:
+            thread.join()

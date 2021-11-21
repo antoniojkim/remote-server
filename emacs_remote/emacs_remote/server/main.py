@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import logging
 import os
 from pathlib import Path
 
@@ -11,7 +12,9 @@ from ..messages.startup import SERVER_STARTUP_MSG
 def run(args):
     print("Ports: ", args.ports, flush=True)
 
-    with ServerDaemon(args.emacs_remote_path, args.workspace, args.ports) as daemon:
+    with ServerDaemon(
+        args.emacs_remote_path, args.workspace, args.ports, args.level
+    ) as daemon:
         print(SERVER_STARTUP_MSG, flush=True)
 
 
@@ -23,7 +26,7 @@ def main():
     parser.add_argument(
         "-r",
         "--emacs_remote_path",
-        default=os.path.join(Path.home(), ".emacs_remote"),
+        default=str(Path.home().joinpath(".emacs_remote")),
         help="Path to the emacs-remote working directory",
     )
     parser.add_argument(
@@ -39,6 +42,13 @@ def main():
         nargs="+",
         required=True,
         help="Ports to listen on",
+    )
+    parser.add_argument(
+        "-l",
+        "--level",
+        choices=["info", "debug", "verbose"],
+        default="info",
+        help="Logger level",
     )
     run(parser.parse_args())
 
