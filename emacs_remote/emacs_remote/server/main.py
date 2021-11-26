@@ -16,6 +16,7 @@ def run(args):
         args.emacs_remote_path, args.workspace, args.ports, args.level
     ) as daemon:
         print(SERVER_STARTUP_MSG, flush=True)
+        daemon.wait()
 
 
 def main():
@@ -46,7 +47,7 @@ def main():
     parser.add_argument(
         "-l",
         "--level",
-        choices=["info", "debug", "verbose"],
+        choices=["info", "debug"],
         default="info",
         help="Logger level",
     )

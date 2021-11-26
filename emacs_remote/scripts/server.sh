@@ -16,4 +16,4 @@ fi
 
 echo "STARTING"
 
-emacs-remote-server -r $EMACS_REMOTE_PATH --workspace $WORKSPACE --ports $PORTS
+emacs-remote-server -r $EMACS_REMOTE_PATH --workspace $WORKSPACE --ports $PORTS --level="debug"

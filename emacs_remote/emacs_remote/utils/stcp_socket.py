@@ -5,6 +5,8 @@ from dataclasses import astuple, is_dataclass
 
 import msgpack
 
+from ..messages.registry import MessageTypeRegistry
+
 
 class SecureTCPSocket:
     def __init__(self, s=None):
@@ -12,6 +14,7 @@ class SecureTCPSocket:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.socket = s
+        self.logger = None
 
     def __enter__(self):
         self.socket.__enter__()
@@ -19,6 +22,9 @@ class SecureTCPSocket:
 
     def __exit__(self, *args):
         self.socket.__exit__(*args)
+
+    def set_logger(self, logger):
+        self.logger = logger
 
     def bind(self, host, port):
         return self.socket.bind((host, port))
@@ -34,10 +40,10 @@ class SecureTCPSocket:
         return self.socket.connect((host, port))
 
     def sendall(self, data):
-        message_type = get_message_type(data)
+        message_type = MessageTypeRegistry.get_index(type(data))
 
         if isinstance(data, str):
-            data = data.encode("utf-8")
+            data = (data,)
         elif is_dataclass(data):
             data = astuple(data)
         elif not isinstance(data, (list, tuple, dict)):
@@ -48,7 +54,12 @@ class SecureTCPSocket:
         packed = msgpack.packb(data)
         compressed = zlib.compress(packed)
 
-        size_message = msgpack.packb((message_type, len(compressed)))
+        size_message = bytearray()
+        size_message.extend(msgpack.packb((message_type, len(compressed))))
+        assert len(size_message) <= 16, "Expected size message to be less than 16 bytes"
+        if len(size_message) < 16:
+            size_message.extend(bytes(16 - len(size_message)))
+
         self.socket.sendall(size_message)
         self.socket.sendall(compressed)
 
@@ -71,7 +82,11 @@ class SecureTCPSocket:
             if not ready[0]:
                 return None
 
-        data = self.socket.recv(1024)
+        data = bytearray()
+        while len(data) < 16:
+            data.extend(self.socket.recv(16))
+
+        data = data.strip(b"\x00")
         message_type, message_size = msgpack.unpackb(data)
 
         data = bytearray()
@@ -81,4 +96,4 @@ class SecureTCPSocket:
         data = zlib.decompress(data)
         data = msgpack.unpackb(data)
 
-        return get_message(message_type, data)
+        return MessageTypeRegistry.get_type(message_type, data)
