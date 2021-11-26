@@ -9,6 +9,7 @@ from threading import Barrier, Event, Thread
 from time import sleep
 
 from .. import utils
+from ..messages.message import Request
 from ..messages.startup import SERVER_STARTUP_MSG
 from ..utils.stcp_socket import SecureTCPSocket
 from ..utils.logging import get_level
@@ -85,11 +86,14 @@ class ServerDaemon:
                         if not data:
                             continue
 
-                        # Send response
-                        conn.sendall(f"Received: {data}")
+                        if not isinstance(data, Request):
+                            logger.debug(f"Expected type Request. Got: {type(data)}")
+
+                        conn.sendall(data.run(logger))
+                        logger.debug("Sent response")
 
             except Exception as e:
-                logger.error(str(e))
+                logger.debug(str(e))
 
     def wait(self):
         # Wait indefinitely

@@ -5,7 +5,7 @@ if [ -z "$EMACS_REMOTE_PATH" ]; then
 fi
 
 mkdir -p $EMACS_REMOTE_PATH
-mkdir -p $EMACS_REMOTE_PATH/scripts
+mkdir -p $EMACS_REMOTE_PATH
 cd $EMACS_REMOTE_PATH
 
 export PATH=$PATH:$EMACS_REMOTE_PATH/bin

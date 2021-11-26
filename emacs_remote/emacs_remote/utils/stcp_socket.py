@@ -123,5 +123,9 @@ class SecureTCPSocket:
 
         data = zlib.decompress(data)
         data = msgpack.unpackb(data)
+        self.logger.debug(f"    Unpacked payload!")
 
-        return MessageTypeRegistry.get_type(message_type, data)
+        data = MessageTypeRegistry.get_type(message_type, data)
+        self.logger.debug(f"    Got message!")
+
+        return data

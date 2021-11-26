@@ -15,6 +15,8 @@ from queue import Queue, Empty as EmptyQueue
 import pexpect
 
 from .. import utils
+from ..messages.message import Response
+from ..messages.shell_command import ShellRequest
 from ..messages.startup import SERVER_STARTUP_MSG
 from ..utils.stcp import SecureTCP
 from ..utils.logging import get_level
@@ -44,8 +46,8 @@ class ClientDaemon:
         self.num_clients = num_clients
 
         self.requests = Queue()
-        self.requests.put("ls")
-        self.requests.put("git status")
+        self.requests.put(ShellRequest(["ls"]))
+        self.requests.put(ShellRequest(["git", "status"]))
 
         self.server = None
         self.exceptions = Queue()
@@ -64,11 +66,11 @@ class ClientDaemon:
         )
 
     def handle_request(self, request, socket):
-        print("Request:", request)
-
         socket.sendall(request)
         data = socket.recvall()
-        print(f"Response: {data}")
+
+        assert isinstance(data, Response)
+        print(data)
 
     def reset_ssh_connection(self):
         if self.server:
