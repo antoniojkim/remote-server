@@ -42,6 +42,13 @@ def main():
         required=True,
         help="Path to the desired workspace",
     )
+    parser.add_argument(
+        "-l",
+        "--level",
+        choices=["info", "debug"],
+        default="info",
+        help="Logger level",
+    )
     run(parser.parse_args())
 
 

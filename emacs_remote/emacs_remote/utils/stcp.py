@@ -59,7 +59,7 @@ class SecureTCP:
                 s.connect("localhost", int(port))
                 print(f"Connected to localhost:{port}")
 
-                client_handler(s)
+                client_handler(index, s)
 
         for thread in self.client_threads:
             thread.join()

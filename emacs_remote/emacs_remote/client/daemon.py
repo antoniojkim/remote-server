@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import os
 import random
 import signal
@@ -16,11 +17,17 @@ import pexpect
 from .. import utils
 from ..messages.startup import SERVER_STARTUP_MSG
 from ..utils.stcp import SecureTCP
+from ..utils.logging import get_level
 
 
 class ClientDaemon:
     def __init__(
-        self, emacs_remote_path: str, host: str, workspace: str, num_clients: int = 1
+        self,
+        emacs_remote_path: str,
+        host: str,
+        workspace: str,
+        num_clients: int = 1,
+        logging_level: str = "info",
     ):
         self.host = host
         self.workspace = workspace
@@ -38,11 +45,23 @@ class ClientDaemon:
 
         self.requests = Queue()
         self.requests.put("ls")
+        self.requests.put("git status")
 
         self.server = None
         self.exceptions = Queue()
 
         self.terminate_queue = Queue()
+
+        self.logging_level = get_level(logging_level)
+        self.file_handler = logging.FileHandler(
+            self.workspace_path.joinpath("client.log"), mode="w"
+        )
+        self.file_handler.setLevel(self.logging_level)
+        logging.basicConfig(
+            level=self.logging_level,
+            format="%(asctime)s %(name)-12s %(levelname)-8s %(message)s",
+            datefmt="%m-%d %H:%M",
+        )
 
     def handle_request(self, request, socket):
         print("Request:", request)
@@ -71,9 +90,14 @@ class ClientDaemon:
 
             return cmd
 
-        def client_handler(socket):
+        def client_handler(index, socket):
             terminate_event = Event()
             self.terminate_queue.put(terminate_event)
+
+            logger = logging.getLogger(f"client.{index}")
+            logger.setLevel(self.logging_level)
+            logger.addHandler(self.file_handler)
+            socket.set_logger(logger)
 
             while not terminate_event.is_set():
                 try:

@@ -66,7 +66,7 @@ class ServerDaemon:
         logger.setLevel(self.logging_level)
         logger.addHandler(self.file_handler)
 
-        with SecureTCPSocket() as s:
+        with SecureTCPSocket(logger=logger) as s:
             try:
                 s.bind("localhost", int(port))
                 logger.debug(f"Bound socket to localhost:{port}")
@@ -81,14 +81,12 @@ class ServerDaemon:
 
                 with conn:
                     while not terminate.is_set():
-                        logger.debug("Receiving data")
                         data = conn.recvall(timeout=2)
                         if not data:
                             continue
 
-                        logger.debug(f"Received data: {data}")
-                        conn.sendall("Received")
-                        logger.debug("Sent response")
+                        # Send response
+                        conn.sendall(f"Received: {data}")
 
             except Exception as e:
                 logger.error(str(e))
