@@ -9,16 +9,17 @@ import subprocess
 import sys
 from time import sleep
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 from queue import Queue, Empty as EmptyQueue
 
 import pexpect
 
 from .. import utils
-from ..messages.message import Response
-from ..messages.shell_command import ShellRequest
+from ..messages import Request, Response, ShellRequest, TerminateRequest
 from ..messages.startup import SERVER_STARTUP_MSG
+from ..utils.atomic import AtomicInt
 from ..utils.stcp import SecureTCP
+from ..utils.stcp_socket import SecureTCPSocket
 from ..utils.logging import get_level
 
 
@@ -45,15 +46,20 @@ class ClientDaemon:
 
         self.num_clients = num_clients
 
+        self.active_requests = AtomicInt()
         self.requests = Queue()
         self.requests.put(ShellRequest(["ls"]))
         self.requests.put(ShellRequest(["git", "status"]))
+        self.requests.put(TerminateRequest())
 
         self.server = None
         self.exceptions = Queue()
 
         self.terminate_queue = Queue()
+        self.finish = Event()
+        self.daemon_lock = Lock()
 
+        self.logging_level_str = logging_level
         self.logging_level = get_level(logging_level)
         self.file_handler = logging.FileHandler(
             self.workspace_path.joinpath("client.log"), mode="w"
@@ -65,7 +71,12 @@ class ClientDaemon:
             datefmt="%m-%d %H:%M",
         )
 
+        self.logger = logging.getLogger("client.daemon")
+        self.logger.setLevel(self.logging_level)
+        self.logger.addHandler(self.file_handler)
+
     def handle_request(self, request, socket):
+        assert isinstance(request, Request)
         socket.sendall(request)
         data = socket.recvall()
 
@@ -83,6 +94,7 @@ class ClientDaemon:
             # Add args
             cmd.append(f'WORKSPACE="{self.workspace}"')
             cmd.append(f'PORTS="{" ".join(server_ports)}"')
+            cmd.append(f'LEVEL="{self.logging_level_str}"')
 
             script_path = Path(sys.prefix, "emacs_remote_scripts", "server.sh")
 
@@ -103,8 +115,9 @@ class ClientDaemon:
 
             while not terminate_event.is_set():
                 try:
-                    request = self.requests.get(timeout=1)
-                    self.handle_request(request, socket)
+                    with self.active_requests:
+                        request = self.requests.get(timeout=1)
+                        self.handle_request(request, socket)
                 except EmptyQueue as e:
                     pass
 
@@ -117,7 +130,7 @@ class ClientDaemon:
 
             return False
 
-        self.server = SecureTCP(self.host, self.num_clients)
+        self.server = SecureTCP(self.host, self.num_clients, self.logger)
         self.server.start(
             get_cmd,
             check_started,
@@ -125,22 +138,41 @@ class ClientDaemon:
         )
 
     def listen(self):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("localhost", 0))
-            port = s.getsockname()[1]
-
-            daemon_port = self.workspace_path.joinpath("daemon.port")
-            daemon_port.write_text(str(port))
-
+        with SecureTCPSocket(logger=self.logger) as s:
             try:
+                s.bind("localhost", 0)
+                port = s.getsockname()[1]
+                self.logger.debug(f"Daemon bound socket to localhost:{port}")
+
+                daemon_port = self.workspace_path.joinpath("daemon.port")
+                daemon_port.write_text(str(port))
+
                 s.listen()
-                conn, addr = s.accept()
-                with conn:
-                    while True:
-                        data = conn.recv(1024)
-                        if not data:
+                self.logger.debug(f"Listening on port {port}")
+
+                while True:
+                    with self.daemon_lock:
+                        if self.finish.is_set():
                             break
-                        conn.sendall(data)
+
+                    conn, addr = s.accept()
+                    self.logger.debug(f"Connection accepted from {addr}")
+
+                    with conn:
+                        data = conn.recvall(timeout=5)
+                        if not data:
+                            continue
+
+                        if not isinstance(data, Request):
+                            self.logger.debug(
+                                f"Expected type Request. Got: {type(data)}"
+                            )
+
+                        conn.sendall(data.run(self))
+
+                self.logger.debug("Finish Client Daemon")
+            except Exception as e:
+                self.logger.error(str(e))
             finally:
                 daemon_port.unlink()
 
@@ -151,9 +183,23 @@ class ClientDaemon:
         return self
 
     def __exit__(self, *args):
+        self.logger.info("Shutting down Client Daemon")
+
+        with self.daemon_lock:
+            self.finish.set()
+        self.requests.put(TerminateRequest())
+
+        self.logger.debug("    Waiting for request queue to be flushed")
+        while not self.requests.empty() or self.active_requests:
+            sleep(1)
+
+        self.logger.debug("    Terminating Client Handlers")
         while not self.terminate_queue.empty():
             terminate_event = self.terminate_queue.get()
             terminate_event.set()
 
+        self.logger.debug("    Stopping server")
         if self.server:
             self.server.stop()
+
+        self.logger.info("Successfully shutdown Client Daemon")

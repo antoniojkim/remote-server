@@ -12,7 +12,7 @@ from .registry import MessageTypeRegistry
 class ShellRequest(Request):
     cmd: List[str]
 
-    def run(self):
+    def run(self, daemon):
         p = subprocess.run(
             self.cmd,
             stdout=subprocess.PIPE,

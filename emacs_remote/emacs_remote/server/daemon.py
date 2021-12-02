@@ -1,6 +1,7 @@
 import logging
 import multiprocessing
 import os
+import signal
 import socket
 import sys
 from pathlib import Path
@@ -9,7 +10,7 @@ from threading import Barrier, Event, Thread
 from time import sleep
 
 from .. import utils
-from ..messages.message import Request
+from ..messages import Request, ShellResponse
 from ..messages.startup import SERVER_STARTUP_MSG
 from ..utils.stcp_socket import SecureTCPSocket
 from ..utils.logging import get_level
@@ -55,9 +56,14 @@ class ServerDaemon:
             datefmt="%m-%d %H:%M",
         )
 
+        self.logger = logging.getLogger("server.daemon")
+        self.logger.setLevel(self.logging_level)
+        self.logger.addHandler(self.file_handler)
+
         self.startup_barrier = Barrier(len(self.ports) + 1)
         self.threads = []
         self.terminate_events = Queue()
+        self.finish = Event()
 
     def listen(self, port):
         terminate = Event()
@@ -82,25 +88,32 @@ class ServerDaemon:
 
                 with conn:
                     while not terminate.is_set():
-                        data = conn.recvall(timeout=2)
-                        if not data:
-                            continue
+                        try:
+                            data = conn.recvall(timeout=2)
+                            if not data:
+                                break
 
-                        if not isinstance(data, Request):
-                            logger.debug(f"Expected type Request. Got: {type(data)}")
+                            logger.debug(f"Got data with type: {type(data)}")
+                            if not isinstance(data, Request):
+                                raise TypeError(
+                                    f"Expected type Request. Got: {type(data)}"
+                                )
 
-                        conn.sendall(data.run(logger))
-                        logger.debug("Sent response")
+                            conn.sendall(data.run(self))
+                            logger.debug("Sent response")
+                        except TimeoutError:
+                            pass
 
             except Exception as e:
-                logger.debug(str(e))
+                logger.error(str(e))
 
     def wait(self):
-        # Wait indefinitely
-        event = Event()
-        event.wait()
+        while not self.finish.is_set():
+            sleep(1)
 
     def __enter__(self):
+        self.logger.info("Starting server threads...")
+
         for port in self.ports:
             thread = Thread(target=self.listen, args=(port,))
             thread.start()
@@ -110,17 +123,13 @@ class ServerDaemon:
         return self
 
     def __exit__(self, *args):
-        logger = logging.getLogger(f"server.{port}")
-        logger.setLevel(self.logging_level)
-        logger.addHandler(self.file_handler)
-
-        logger.debug("Terminating events")
+        self.logger.debug("Terminating events")
         while not self.terminate_events.empty():
             event = self.terminate_events.get()
             event.set()
 
-        logger.debug("Waiting for threads to join")
+        self.logger.debug("Waiting for threads to join")
         for thread in self.threads:
             thread.join()
 
-        logger.debug("Exiting emacs remote server daemon")
+        self.logger.info("Exiting emacs remote server daemon")

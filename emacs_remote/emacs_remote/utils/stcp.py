@@ -20,7 +20,7 @@ class SecureTCP:
         num_clients: the number of TCP connections to establish
     """
 
-    def __init__(self, host: str, num_clients: int = 1):
+    def __init__(self, host: str, num_clients: int = 1, logger=None):
         self.host = host
         self.num_clients = num_clients
 
@@ -31,6 +31,8 @@ class SecureTCP:
         self.process_started = Event()
 
         self.exception_queue = Queue()
+
+        self.logger = logger
 
     def start(
         self, cmd_closure: Callable, start_closure: Callable, client_handler: Callable
@@ -54,10 +56,10 @@ class SecureTCP:
 
             time.sleep(1)
 
-            print(f"Connecting to localhost:{port}...")
+            self.logger.debug(f"Connecting to localhost:{port}...")
             with SecureTCPSocket() as s:
                 s.connect("localhost", int(port))
-                print(f"Connected to localhost:{port}")
+                self.logger.debug(f"Connected to localhost:{port}")
 
                 client_handler(index, s)
 
@@ -86,7 +88,7 @@ class SecureTCP:
             cmd.append(self.host)
             cmd.extend(cmd_closure(client_ports, server_ports))
 
-            print("cmd:", " ".join(cmd))
+            self.logger.info(f"cmd: {' '.join(cmd)}")
 
             self.process_started.clear()
             self.process = subprocess.Popen(
@@ -97,14 +99,14 @@ class SecureTCP:
 
             if not start_closure(self.process):
                 code = self.process.wait(timeout=timeout)  # wait for server to come up
-                print(f"Error {code}.")
+                self.logger.info(f"Error {code}.")
 
                 outs, errs = self.process.communicate(timeout=15)
-                print(f"{' stdout ':=^50}")
-                print(outs.decode("utf-8"))
-                print(f"{' stderr ':=^50}")
-                print(errs.decode("utf-8"))
-                print(f"{'':=^50}")
+                self.logger.debug(f"{' stdout ':=^50}")
+                self.logger.debug(outs.decode("utf-8"))
+                self.logger.debug(f"{' stderr ':=^50}")
+                self.logger.debug(errs.decode("utf-8"))
+                self.logger.debug(f"{'':=^50}")
 
                 return False
 
@@ -114,10 +116,10 @@ class SecureTCP:
         try:
             for i in range(1, 6):
                 if start_server(timeout=i * 2 + 1):
-                    print("ssh connection established!", flush=True)
+                    self.logger.info("ssh connection established!")
                     break
 
-                print(" Retrying ssh connection...", flush=True)
+                self.logger.info(" Retrying ssh connection...")
             else:
                 raise RuntimeError("Unable to start server")
 
@@ -130,18 +132,20 @@ class SecureTCP:
 
         if self.process:
             self.process.send_signal(signal.SIGINT)
+            # self.process.terminate()
             code = self.process.wait(timeout=10)
-            outs, errs = self.process.communicate(timeout=15)
-            print(f"{' stdout ':=^50}")
-            print(outs.decode("utf-8"))
-            print(f"{' stderr ':=^50}")
-            print(errs.decode("utf-8"))
-            print(f"{'':=^50}")
 
             if code != 0:
-                print(f"Failed to stop server. Error code {code}")
+                self.logger.info(f"Failed to stop server. Error code {code}")
+
+                outs, errs = self.process.communicate(timeout=15)
+                self.logger.debug(f"{' stdout ':=^50}")
+                self.logger.debug(outs.decode("utf-8"))
+                self.logger.debug(f"{' stderr ':=^50}")
+                self.logger.debug(errs.decode("utf-8"))
+                self.logger.debug(f"{'':=^50}")
             else:
-                print("Successfully cleaned up server process!")
+                self.logger.info("Successfully cleaned up server process!")
 
     def run(self, cmd: list, expect_msg: str = None, timeout: int = None):
         assert (

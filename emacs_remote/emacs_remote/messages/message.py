@@ -7,5 +7,5 @@ class Response(abc.ABC):
 
 class Request(abc.ABC):
     @abc.abstractmethod
-    def run(self) -> Response:
+    def run(self, daemon) -> Response:
         pass

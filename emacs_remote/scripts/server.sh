@@ -14,6 +14,4 @@ if ! which emacs-remote-server; then
     exit 1
 fi
 
-echo "STARTING"
-
-emacs-remote-server -r $EMACS_REMOTE_PATH --workspace $WORKSPACE --ports $PORTS --level="debug"
+exec emacs-remote-server -r $EMACS_REMOTE_PATH --workspace $WORKSPACE --ports $PORTS --level="$LEVEL"

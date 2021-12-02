@@ -4,4 +4,5 @@ from .message import Request, Response
 from .registry import MessageTypeRegistry
 
 # Message Types
-from .shell_command import ShellRequest, ShellResponse
+from .shell_request import ShellRequest, ShellResponse
+from .terminate_request import TerminateRequest, TerminateResponse

@@ -23,6 +23,8 @@ class SecureTCPSocket:
 
     def __enter__(self):
         self.socket.__enter__()
+        # self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        # self.socket.setsockopt(socket.IPPROTO_TCP, TCP_KEEPALIVE, 1)
         return self
 
     def __exit__(self, *args):
@@ -33,6 +35,9 @@ class SecureTCPSocket:
 
     def bind(self, host, port):
         return self.socket.bind((host, port))
+
+    def getsockname(self):
+        return self.socket.getsockname()
 
     def listen(self):
         return self.socket.listen()
@@ -45,7 +50,7 @@ class SecureTCPSocket:
         return self.socket.connect((host, port))
 
     def sendall(self, data):
-        self.logger.debug(f"Sending data: {id(data)}")
+        self.logger.debug(f"Sending data: {data}")
 
         message_type = MessageTypeRegistry.get_index(type(data))
         self.logger.debug(f"    message_type: {message_type}")
@@ -98,12 +103,15 @@ class SecureTCPSocket:
             ready = select.select([self.socket], [], [], timeout)
             if not ready[0]:
                 self.logger.debug(f"    timed out")
-                return None
+                raise TimeoutError()
 
         self.logger.debug(f"    receiving message size...")
         data = bytearray()
         while len(data) < 16:
             d = self.socket.recv(16)
+            if len(d) == 0:
+                self.logger.debug(f"        Received no data")
+                return None
             data.extend(d)
             self.logger.debug(f"        received {len(d)} bytes (total: {len(data)})")
 
@@ -116,6 +124,8 @@ class SecureTCPSocket:
         data = bytearray()
         while len(data) < message_size:
             d = self.socket.recv(1024)
+            if len(d) == 0:
+                return None
             data.extend(d)
             self.logger.debug(f"        received {len(d)} bytes (total: {len(data)})")
 

@@ -9,7 +9,9 @@ from .daemon import ClientDaemon
 
 def run(args):
     if args.daemon:
-        with ClientDaemon(args.emacs_remote_path, args.host, args.workspace) as daemon:
+        with ClientDaemon(
+            args.emacs_remote_path, args.host, args.workspace, logging_level=args.level
+        ) as daemon:
             daemon.listen()
     else:
         pass
