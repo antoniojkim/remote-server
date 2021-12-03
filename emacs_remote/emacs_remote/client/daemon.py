@@ -20,7 +20,7 @@ from ..messages.startup import SERVER_STARTUP_MSG
 from ..utils.atomic import AtomicInt
 from ..utils.stcp import SecureTCP
 from ..utils.stcp_socket import SecureTCPSocket
-from ..utils.logging import get_level
+from ..utils.logging import get_level, LoggerFactory
 
 
 class ClientDaemon:
@@ -50,7 +50,7 @@ class ClientDaemon:
         self.requests = Queue()
         self.requests.put(ShellRequest(["ls"]))
         self.requests.put(ShellRequest(["git", "status"]))
-        self.requests.put(TerminateRequest())
+        # self.requests.put(TerminateRequest())
 
         self.server = None
         self.exceptions = Queue()
@@ -59,21 +59,11 @@ class ClientDaemon:
         self.finish = Event()
         self.daemon_lock = Lock()
 
-        self.logging_level_str = logging_level
-        self.logging_level = get_level(logging_level)
-        self.file_handler = logging.FileHandler(
-            self.workspace_path.joinpath("client.log"), mode="w"
+        self.logging_level = logging_level
+        self.logging_factory = LoggerFactory(
+            logging_level, self.workspace_path.joinpath("client.log")
         )
-        self.file_handler.setLevel(self.logging_level)
-        logging.basicConfig(
-            level=self.logging_level,
-            format="%(asctime)s %(name)-12s %(levelname)-8s %(message)s",
-            datefmt="%m-%d %H:%M",
-        )
-
-        self.logger = logging.getLogger("client.daemon")
-        self.logger.setLevel(self.logging_level)
-        self.logger.addHandler(self.file_handler)
+        self.logger = self.logging_factory.get_logger("client.daemon")
 
     def handle_request(self, request, socket):
         assert isinstance(request, Request)
@@ -94,7 +84,7 @@ class ClientDaemon:
             # Add args
             cmd.append(f'WORKSPACE="{self.workspace}"')
             cmd.append(f'PORTS="{" ".join(server_ports)}"')
-            cmd.append(f'LEVEL="{self.logging_level_str}"')
+            cmd.append(f'LEVEL="{self.logging_level}"')
 
             script_path = Path(sys.prefix, "emacs_remote_scripts", "server.sh")
 
@@ -108,9 +98,7 @@ class ClientDaemon:
             terminate_event = Event()
             self.terminate_queue.put(terminate_event)
 
-            logger = logging.getLogger(f"client.{index}")
-            logger.setLevel(self.logging_level)
-            logger.addHandler(self.file_handler)
+            logger = self.logging_factory.get_logger(f"client.{index}")
             socket.set_logger(logger)
 
             while not terminate_event.is_set():

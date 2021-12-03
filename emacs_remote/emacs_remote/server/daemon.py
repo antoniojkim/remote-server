@@ -45,20 +45,10 @@ class ServerDaemon:
         )
         self.workspace_path.mkdir(parents=True, exist_ok=True)
 
-        self.logging_level = get_level(logging_level)
-        self.file_handler = logging.FileHandler(
-            self.workspace_path.joinpath("server.log"), mode="w"
+        self.logging_factory = LoggerFactory(
+            logging_level, self.workspace_path.joinpath("server.log")
         )
-        self.file_handler.setLevel(self.logging_level)
-        logging.basicConfig(
-            level=self.logging_level,
-            format="%(asctime)s %(name)-12s %(levelname)-8s %(message)s",
-            datefmt="%m-%d %H:%M",
-        )
-
-        self.logger = logging.getLogger("server.daemon")
-        self.logger.setLevel(self.logging_level)
-        self.logger.addHandler(self.file_handler)
+        self.logger = self.logging_factory.get_logger("server.daemon")
 
         self.startup_barrier = Barrier(len(self.ports) + 1)
         self.threads = []
@@ -69,9 +59,7 @@ class ServerDaemon:
         terminate = Event()
         self.terminate_events.put(terminate)
 
-        logger = logging.getLogger(f"server.{port}")
-        logger.setLevel(self.logging_level)
-        logger.addHandler(self.file_handler)
+        logger = self.logging_factory.get_logger(f"server.{port}")
 
         with SecureTCPSocket(logger=logger) as s:
             try:
