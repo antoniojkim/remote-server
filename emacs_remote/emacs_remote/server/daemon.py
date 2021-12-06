@@ -13,7 +13,7 @@ from .. import utils
 from ..messages import Request, ShellResponse
 from ..messages.startup import SERVER_STARTUP_MSG
 from ..utils.stcp_socket import SecureTCPSocket
-from ..utils.logging import get_level
+from ..utils.logging import LoggerFactory
 
 
 class ServerDaemon:
@@ -64,30 +64,26 @@ class ServerDaemon:
         with SecureTCPSocket(logger=logger) as s:
             try:
                 s.bind("localhost", int(port))
-                logger.debug(f"Bound socket to localhost:{port}")
 
                 self.startup_barrier.wait()
 
                 s.listen()
-                logger.debug(f"Listening on port {port}")
-
                 conn, addr = s.accept()
-                logger.debug(f"Connection accepted from {addr}")
 
                 with conn:
                     while not terminate.is_set():
                         try:
-                            data = conn.recvall(timeout=2)
-                            if not data:
+                            request = conn.recvall(timeout=2)
+                            if not request:
                                 break
 
-                            logger.debug(f"Got data with type: {type(data)}")
-                            if not isinstance(data, Request):
+                            logger.debug(f"Got request with type: {type(request)}")
+                            if not isinstance(request, Request):
                                 raise TypeError(
-                                    f"Expected type Request. Got: {type(data)}"
+                                    f"Expected type Request. Got: {type(request)}"
                                 )
 
-                            conn.sendall(data.run(self))
+                            conn.sendall(request.run(self))
                             logger.debug("Sent response")
                         except TimeoutError:
                             pass

@@ -4,17 +4,26 @@ import select
 import socket
 from time import sleep
 from threading import Barrier, Event, Thread
+from queue import Queue, Empty as EmptyQueue
+
+from emacs_remote.utils.stcp_socket import SecureTCPSocket
 
 
 def main():
     port = None
     barrier = Barrier(2)
 
+    requests = Queue()
+    finish = Event()
+
+    for i in range(100):
+        requests.put("Test")
+
     def server():
         nonlocal port
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("localhost", 0))
+        with SecureTCPSocket() as s:
+            s.bind("localhost", 0)
             port = str(s.getsockname()[1])
             barrier.wait()
 
@@ -24,37 +33,39 @@ def main():
             i = 0
             with conn:
                 while True:
-                    conn.setblocking(0)
-                    ready = select.select([conn], [], [], 2)
-                    if not ready[0]:
-                        print("Timed out")
-                        continue
+                    try:
+                        data = conn.recvall(timeout=2)
+                        if not data:
+                            break
 
-                    data = conn.recv(1024)
-                    if not data:
-                        break
+                        print(f"Data: {data}")
 
-                    data = data.decode("utf-8")
-                    print(f"Data: {data}")
+                        i += 1
+                        conn.sendall(f"Received {i}")
 
-                    i += 1
-                    conn.sendall(f"Received {i}".encode("utf-8"))
+                        if data == "exit":
+                            break
+                    except TimeoutError:
+                        pass
+
+        print("Exiting server")
 
     def client():
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect(("localhost", int(port)))
+        with SecureTCPSocket() as s:
+            s.connect("localhost", int(port))
 
-            for wait, message in (
-                (0, "Test"),
-                (0, "Test2"),
-                (5, "Test Wait"),
-            ):
-                sleep(wait)
-                s.sendall(message.encode("utf-8"))
+            while not finish.is_set():
+                try:
+                    request = requests.get(timeout=1)
 
-                data = s.recv(1024)
-                if data:
-                    print(data.decode("utf-8"))
+                    s.sendall(request)
+                    response = s.recvall()
+                    if response:
+                        print(response)
+                except EmptyQueue as e:
+                    pass
+
+        print("Exiting client")
 
     server_thread = Thread(target=server)
     server_thread.start()
@@ -62,8 +73,16 @@ def main():
 
     client_thread = Thread(target=client)
     client_thread.start()
-    # barrier.wait()
 
+    try:
+        while True:
+            message = input(">>> ")
+            requests.put(message)
+    except KeyboardInterrupt:
+        pass
+
+    requests.put("exit")
+    finish.set()
     client_thread.join()
     server_thread.join()
 

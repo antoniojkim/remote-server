@@ -20,7 +20,7 @@ from ..messages.startup import SERVER_STARTUP_MSG
 from ..utils.atomic import AtomicInt
 from ..utils.stcp import SecureTCP
 from ..utils.stcp_socket import SecureTCPSocket
-from ..utils.logging import get_level, LoggerFactory
+from ..utils.logging import LoggerFactory
 
 
 class ClientDaemon:
@@ -68,10 +68,10 @@ class ClientDaemon:
     def handle_request(self, request, socket):
         assert isinstance(request, Request)
         socket.sendall(request)
-        data = socket.recvall()
+        response = socket.recvall()
 
-        assert isinstance(data, Response)
-        print(data)
+        assert isinstance(response, Response)
+        print(response)
 
     def reset_ssh_connection(self):
         if self.server:
@@ -102,12 +102,12 @@ class ClientDaemon:
             socket.set_logger(logger)
 
             while not terminate_event.is_set():
-                try:
-                    with self.active_requests:
+                with self.active_requests:
+                    try:
                         request = self.requests.get(timeout=1)
                         self.handle_request(request, socket)
-                except EmptyQueue as e:
-                    pass
+                    except EmptyQueue as e:
+                        pass
 
         def check_started(process):
             for line in process.stdout:
@@ -168,6 +168,9 @@ class ClientDaemon:
         self.reset_ssh_connection()
 
         print("Client Daemon Initialized!")
+
+        sleep(5)
+        self.requests.put(ShellRequest(["ls", "-alh"]))
         return self
 
     def __exit__(self, *args):

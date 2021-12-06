@@ -7,6 +7,7 @@ from dataclasses import astuple, is_dataclass
 import msgpack
 
 from ..messages.registry import MessageTypeRegistry
+from ..utils.logging import LoggerFactory
 
 
 class SecureTCPSocket:
@@ -15,11 +16,15 @@ class SecureTCPSocket:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         self.socket = s
+        self.host = None
+        self.port = None
 
         if logger is None:
-            logger = logging.getLogger("SecureTCPSocket")
+            logger = LoggerFactory().get_logger("SecureTCPSocket")
 
         self.logger = logger
+
+        self.recv_buffer = bytearray()
 
     def __enter__(self):
         self.socket.__enter__()
@@ -34,16 +39,22 @@ class SecureTCPSocket:
         self.logger = logger
 
     def bind(self, host, port):
-        return self.socket.bind((host, port))
+        self.host = host
+        self.port = port
+        out = self.socket.bind((host, port))
+        self.logger.debug(f"Bound socket to {host}:{port}")
+        return out
 
     def getsockname(self):
         return self.socket.getsockname()
 
     def listen(self):
+        self.logger.debug(f"Listening on port {self.port}")
         return self.socket.listen()
 
     def accept(self):
         conn, addr = self.socket.accept()
+        self.logger.debug(f"Connection accepted from {addr}")
         return SecureTCPSocket(conn, self.logger), addr
 
     def connect(self, host, port):
@@ -68,18 +79,23 @@ class SecureTCPSocket:
         compressed = zlib.compress(packed)
         self.logger.debug(f"    message_size: {len(compressed)}")
 
-        size_message = bytearray()
-        size_message.extend(msgpack.packb((message_type, len(compressed))))
+        size_message = msgpack.packb((message_type, len(compressed)))
         assert len(size_message) <= 16, "Expected size message to be less than 16 bytes"
+
+        payload = bytearray()
+        payload.extend(size_message)
         if len(size_message) < 16:
-            size_message.extend(bytes(16 - len(size_message)))
+            payload.extend(bytes(16 - len(size_message)))
 
-        self.logger.debug(f"    sending size message...")
+        payload.extend(compressed)
 
-        self.socket.sendall(size_message)
-        self.logger.debug(f"    sending payload...")
+        try:
+            self.logger.debug(f"    sending payload ({len(payload)})...")
+            self.socket.sendall(payload)
+        except:
+            self.logger.error("Failed to send payload")
+            raise
 
-        self.socket.sendall(compressed)
         self.logger.debug(f"    Send Complete!")
 
     def recvall(self, timeout: float = None):
@@ -99,43 +115,58 @@ class SecureTCPSocket:
             assert isinstance(timeout, (int, float)) and timeout > 0
             self.logger.debug(f"    Timeout: {timeout}")
 
-            self.socket.setblocking(0)
-            ready = select.select([self.socket], [], [], timeout)
-            if not ready[0]:
-                self.logger.debug(f"    timed out")
-                raise TimeoutError()
+            try:
+                self.socket.setblocking(False)
+                ready = select.select([self.socket], [], [], timeout)
+                if not ready[0]:
+                    self.logger.debug(f"    timed out")
+                    raise TimeoutError()
+            finally:
+                self.socket.setblocking(True)
 
-        self.logger.debug(f"    receiving message size...")
-        data = bytearray()
-        while len(data) < 16:
-            d = self.socket.recv(16)
-            if len(d) == 0:
-                self.logger.debug(f"        Received no data")
+        self.logger.debug(f"    receiving payload...")
+        while len(self.recv_buffer) < 16:
+            data = self.socket.recv(1024)
+            if not data:
+                self.logger.debug(
+                    f"        Received no data (total: {len(self.recv_buffer)})"
+                )
                 return None
-            data.extend(d)
-            self.logger.debug(f"        received {len(d)} bytes (total: {len(data)})")
 
-        data = data.strip(b"\x00")
-        message_type, message_size = msgpack.unpackb(data)
+            self.recv_buffer.extend(data)
+            self.logger.debug(
+                f"        received {len(data)} bytes (total: {len(self.recv_buffer)})"
+            )
+
+        assert len(self.recv_buffer) >= 16
+
+        size_message = self.recv_buffer[:16].strip(b"\x00")
+
+        message_type, message_size = msgpack.unpackb(size_message)
         self.logger.debug(f"    message_type: {message_type}")
         self.logger.debug(f"    message_size: {message_size}")
 
-        self.logger.debug(f"    receiving payload...")
-        data = bytearray()
-        while len(data) < message_size:
-            d = self.socket.recv(1024)
-            if len(d) == 0:
+        self.recv_buffer = self.recv_buffer[16:]
+        while len(self.recv_buffer) < message_size:
+            data = self.socket.recv(1024)
+            if len(data) == 0:
                 return None
-            data.extend(d)
-            self.logger.debug(f"        received {len(d)} bytes (total: {len(data)})")
+
+            self.recv_buffer.extend(data)
+            self.logger.debug(
+                f"        received {len(data)} bytes (total: {len(self.recv_buffer)})"
+            )
 
         self.logger.debug(f"    Received payload!")
 
-        data = zlib.decompress(data)
-        data = msgpack.unpackb(data)
-        self.logger.debug(f"    Unpacked payload!")
+        payload = self.recv_buffer[:message_size]
+        self.recv_buffer = self.recv_buffer[message_size:]
 
-        data = MessageTypeRegistry.get_type(message_type, data)
+        data = zlib.decompress(payload)
+        data = msgpack.unpackb(data)
+        self.logger.debug(f"    Unpacked data!")
+
+        message = MessageTypeRegistry.get_type(message_type, data)
         self.logger.debug(f"    Got message!")
 
-        return data
+        return message

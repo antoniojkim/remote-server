@@ -11,8 +11,8 @@ _LOGGING_LEVELS = (logging.INFO, logging.DEBUG)
 
 
 class LoggerFactory:
-    def __init__(self, level, filepath=None):
-        self.level = Logger.get_level(level)
+    def __init__(self, level="info", filepath=None):
+        self.level = LoggerFactory.get_level(level)
 
         logging.basicConfig(
             level=self.level,
