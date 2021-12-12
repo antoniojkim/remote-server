@@ -69,6 +69,7 @@ class SecureTCP:
         self.client_threads.clear()
         for i in range(self.num_clients):
             thread = Thread(target=client, args=(i,))
+            thread.daemon = True
             thread.start()
             self.client_threads.append(thread)
 
@@ -146,6 +147,9 @@ class SecureTCP:
                 self.logger.debug(f"{'':=^50}")
             else:
                 self.logger.info("Successfully cleaned up server process!")
+
+    def __bool__(self):
+        return self.process and self.process.poll() is None
 
     def run(self, cmd: list, expect_msg: str = None, timeout: int = None):
         assert (

@@ -9,13 +9,13 @@ import subprocess
 import sys
 from time import sleep
 from pathlib import Path
-from threading import Event, Lock
+from threading import Event, Lock, Thread
 from queue import Queue, Empty as EmptyQueue
 
 import pexpect
 
 from .. import utils
-from ..messages import Request, Response, ShellRequest, TerminateRequest
+from ..messages import Request, Response, ShellRequest, ServerTerminateRequest
 from ..messages.startup import SERVER_STARTUP_MSG
 from ..utils.atomic import AtomicInt
 from ..utils.stcp import SecureTCP
@@ -52,7 +52,7 @@ class ClientDaemon:
         self.requests.put(ShellRequest(["git", "status"]))
         # self.requests.put(TerminateRequest())
 
-        self.server = None
+        self.session = None
         self.exceptions = Queue()
 
         self.terminate_queue = Queue()
@@ -65,18 +65,7 @@ class ClientDaemon:
         )
         self.logger = self.logging_factory.get_logger("client.daemon")
 
-    def handle_request(self, request, socket):
-        assert isinstance(request, Request)
-        socket.sendall(request)
-        response = socket.recvall()
-
-        assert isinstance(response, Response)
-        print(response)
-
-    def reset_ssh_connection(self):
-        if self.server:
-            self.server.stop()
-
+    def stcp_session(self):
         print(f"Establishing ssh connection with {self.host}...")
 
         def get_cmd(client_ports, server_ports):
@@ -105,27 +94,87 @@ class ClientDaemon:
                 with self.active_requests:
                     try:
                         request = self.requests.get(timeout=1)
-                        self.handle_request(request, socket)
+
+                        assert isinstance(request, Request)
+                        assert server, "Failed to send. Server has died..."
+                        socket.sendall(request)
+
+                        assert server, "Failed to receive. Server has died..."
+                        response = socket.recvall()
+
+                        assert isinstance(response, Response)
+                        self.logger.info(response)
                     except EmptyQueue as e:
                         pass
 
         def check_started(process):
             for line in process.stdout:
                 line = line.decode("utf-8").strip()
-                # print(line)
+                self.logger.debug(line)
+
                 if line == SERVER_STARTUP_MSG:
                     return True
 
             return False
 
-        self.server = SecureTCP(self.host, self.num_clients, self.logger)
-        self.server.start(
+        server = SecureTCP(self.host, self.num_clients, self.logger)
+        server.start(
             get_cmd,
             check_started,
             client_handler,
         )
 
+        self.logger.info("Client Daemon Initialized!")
+
+        self.finish.wait()
+
+        self.logger.info("Shutting down Client Daemon")
+
+        self.requests.put(ServerTerminateRequest())
+
+        self.logger.debug("    Waiting for request queue to be flushed")
+        while not self.requests.empty():
+            self.logger.debug("    Request queue is not empty")
+            sleep(1)
+
+        self.logger.debug("    Terminating Client Handlers")
+        while not self.terminate_queue.empty():
+            terminate_event = self.terminate_queue.get()
+            terminate_event.set()
+
+        while self.active_requests:
+            self.logger.debug("    Number of active requests is > 0")
+            sleep(1)
+
+        self.logger.debug("    Stopping server")
+        if server:
+            server.stop()
+
+        self.logger.info("Successfully shutdown Client Daemon")
+
+    def start(self):
+        self.session = Thread(target=self.stcp_session)
+        self.session.daemon = True
+        self.session.start()
+
+    def stop(self):
+        with self.daemon_lock:
+            self.finish.set()
+
+        if self.session:
+            self.session.join()
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, *args):
+        self.stop()
+
     def listen(self):
+        input()  # temporary hack to clean exit
+        return
+
         with SecureTCPSocket(logger=self.logger) as s:
             try:
                 s.bind("localhost", 0)
@@ -159,38 +208,9 @@ class ClientDaemon:
                         conn.sendall(data.run(self))
 
                 self.logger.debug("Finish Client Daemon")
+            except KeyboardInterrupt:  # Properly exit on interrupt
+                pass
             except Exception as e:
                 self.logger.error(str(e))
             finally:
                 daemon_port.unlink()
-
-    def __enter__(self):
-        self.reset_ssh_connection()
-
-        print("Client Daemon Initialized!")
-
-        sleep(5)
-        self.requests.put(ShellRequest(["ls", "-alh"]))
-        return self
-
-    def __exit__(self, *args):
-        self.logger.info("Shutting down Client Daemon")
-
-        with self.daemon_lock:
-            self.finish.set()
-        self.requests.put(TerminateRequest())
-
-        self.logger.debug("    Waiting for request queue to be flushed")
-        while not self.requests.empty() or self.active_requests:
-            sleep(1)
-
-        self.logger.debug("    Terminating Client Handlers")
-        while not self.terminate_queue.empty():
-            terminate_event = self.terminate_queue.get()
-            terminate_event.set()
-
-        self.logger.debug("    Stopping server")
-        if self.server:
-            self.server.stop()
-
-        self.logger.info("Successfully shutdown Client Daemon")

@@ -5,17 +5,32 @@ from .registry import MessageTypeRegistry
 
 
 @dataclass
-class TerminateResponse(Response):
+class ServerTerminateResponse(Response):
     success: bool
 
 
 @dataclass
-class TerminateRequest(Request):
+class ServerTerminateRequest(Request):
     def run(self, daemon):
         daemon.logger.debug("Running Terminate Request")
         daemon.finish.set()
-        return TerminateResponse(True)
+        return ServerTerminateResponse(True)
 
 
-MessageTypeRegistry.register(TerminateRequest)
-MessageTypeRegistry.register(TerminateResponse)
+@dataclass
+class ClientTerminateResponse(Response):
+    success: bool
+
+
+@dataclass
+class ClientTerminateRequest(Request):
+    def run(self, daemon):
+        # daemon.logger.debug("Running Terminate Request")
+        # daemon.finish.set()
+        return ClientTerminateResponse(True)
+
+
+MessageTypeRegistry.register(ServerTerminateRequest)
+MessageTypeRegistry.register(ServerTerminateResponse)
+MessageTypeRegistry.register(ClientTerminateRequest)
+MessageTypeRegistry.register(ClientTerminateResponse)

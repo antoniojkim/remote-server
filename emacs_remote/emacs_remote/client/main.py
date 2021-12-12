@@ -3,6 +3,7 @@
 import argparse
 import os
 from pathlib import Path
+from threading import Thread
 
 from .daemon import ClientDaemon
 
@@ -10,7 +11,10 @@ from .daemon import ClientDaemon
 def run(args):
     if args.daemon:
         with ClientDaemon(
-            args.emacs_remote_path, args.host, args.workspace, logging_level=args.level
+            emacs_remote_path=args.emacs_remote_path,
+            host=args.host,
+            workspace=args.workspace,
+            logging_level=args.level,
         ) as daemon:
             daemon.listen()
     else:
