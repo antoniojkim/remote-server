@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
+set -e
+
 # Kill any lingering emacs_remote processes
-ps -eaf | grep emacs_remote | grep -v grep | awk '{print $2}' | xargs kill
+ps -eaf | grep -e "emacs[-_]remote" | grep -v -e 'grep' -e 'tmux' | awk '{print $2}' | xargs kill
 
 declare cmd=${0##*/}
 declare -i i
@@ -22,4 +24,7 @@ do
     esac
 done
 
-pip install . && emacs-remote-client --daemon --host localhost --workspace ~/Documents/Cerebras --level="$LEVEL"
+pip install .
+emacs-remote-client --daemon --host localhost --workspace ~/Documents/Cerebras --level="$LEVEL" &
+emacs-remote-client --host localhost --workspace ~/Documents/Cerebras --level="$LEVEL"
+wait

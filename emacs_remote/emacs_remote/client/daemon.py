@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import logging
 import os
 import random
@@ -34,7 +32,7 @@ class ClientDaemon:
     ):
         self.host = host
         self.workspace = workspace
-        self.workspace_hash = utils.md5(workspace)
+        self.workspace_hash = utils.md5((host, workspace))
 
         self.emacs_remote_path = Path(emacs_remote_path)
         self.emacs_remote_path.mkdir(parents=True, exist_ok=True)
@@ -44,12 +42,14 @@ class ClientDaemon:
         self.workspace_path.mkdir(parents=True, exist_ok=True)
         os.chdir(self.workspace_path.resolve())
 
+        print("Workspace ", self.workspace_path)
+
         self.num_clients = num_clients
 
         self.active_requests = AtomicInt()
         self.requests = Queue()
-        self.requests.put(ShellRequest(["ls"]))
-        self.requests.put(ShellRequest(["git", "status"]))
+        # self.requests.put(ShellRequest(["ls"]))
+        # self.requests.put(ShellRequest(["git", "status"]))
         # self.requests.put(TerminateRequest())
 
         self.session = None
@@ -66,7 +66,7 @@ class ClientDaemon:
         self.logger = self.logging_factory.get_logger("client.daemon")
 
     def stcp_session(self):
-        print(f"Establishing ssh connection with {self.host}...")
+        self.logger.info(f"Establishing ssh connection with {self.host}...")
 
         def get_cmd(client_ports, server_ports):
             cmd = []
@@ -172,9 +172,6 @@ class ClientDaemon:
         self.stop()
 
     def listen(self):
-        input()  # temporary hack to clean exit
-        return
-
         with SecureTCPSocket(logger=self.logger) as s:
             try:
                 s.bind("localhost", 0)
