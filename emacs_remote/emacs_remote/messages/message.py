@@ -2,7 +2,8 @@ import abc
 
 
 class Response(abc.ABC):
-    pass
+    def run(self, client) -> None:
+        pass
 
 
 class Request(abc.ABC):

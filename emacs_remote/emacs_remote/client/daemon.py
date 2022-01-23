@@ -33,8 +33,8 @@ class ClientDaemon:
         logging_level: str = "info",
     ):
         self.host = host
-        self.workspace = workspace
-        self.workspace_hash = utils.md5((host, workspace))
+        self.workspace = Path(workspace)
+        self.workspace_hash = utils.md5((host, str(workspace)))
 
         self.emacs_remote_path = Path(emacs_remote_path)
         self.emacs_remote_path.mkdir(parents=True, exist_ok=True)

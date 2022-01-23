@@ -7,8 +7,8 @@ from time import sleep
 from emacs_remote import utils
 from emacs_remote.client.daemon import ClientDaemon
 from emacs_remote.client.utils import add_client_subparsers
-from emacs_remote.messages import (Request, Response, ServerTerminateRequest,
-                                   ShellRequest)
+from emacs_remote.messages import (GetFileRequest, Request, Response,
+                                   ServerTerminateRequest, ShellRequest)
 from emacs_remote.utils.logging import LoggerFactory
 from emacs_remote.utils.stcp_socket import SecureTCPSocket
 
@@ -18,7 +18,7 @@ class ClientInterface:
         self, emacs_remote_path: str, host: str, workspace: str, logging_level: str
     ):
         self.host = host
-        self.workspace = workspace
+        self.workspace = Path(workspace)
         self.workspace_hash = utils.md5((host, workspace))
 
         self.emacs_remote_path = Path(emacs_remote_path)
@@ -30,6 +30,9 @@ class ClientInterface:
         os.chdir(self.workspace_path.resolve())
 
         print("Workspace ", self.workspace_path)
+
+        self.base_path = self.workspace_path.joinpath(self.workspace.name)
+        self.base_path.mkdir(exist_ok=True)
 
         port_file = self.workspace_path.joinpath("daemon.port")
         if not port_file.exists():
@@ -68,9 +71,14 @@ class ClientInterface:
         if args.command == "exit":
             self.socket.sendall(ServerTerminateRequest())
             response = self.socket.recvall()
-            raise EOFError("Daemon has been terminated")
+            self.logger.info("Client Daemon Succesfully Terminated!")
         elif args.command == "get":
-            self.get(args.filename, args.absolute)
+            self.socket.sendall(GetFileRequest(args.filename, args.absolute))
+            response = self.socket.recvall()
+            if isinstance(response, Response):
+                raise TypeError(f"Expected response type. Got: {type(response)}")
+
+            response.run(self)
 
     def prompt(self):
         parser = argparse.ArgumentParser()
