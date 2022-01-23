@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 import random
@@ -5,20 +6,21 @@ import signal
 import socket
 import subprocess
 import sys
-from time import sleep
 from pathlib import Path
+from queue import Empty as EmptyQueue
+from queue import Queue
 from threading import Event, Lock, Thread
-from queue import Queue, Empty as EmptyQueue
+from time import sleep
 
-import pexpect
-
-from .. import utils
-from ..messages import Request, Response, ShellRequest, ServerTerminateRequest
-from ..messages.startup import SERVER_STARTUP_MSG
-from ..utils.atomic import AtomicInt
-from ..utils.stcp import SecureTCP
-from ..utils.stcp_socket import SecureTCPSocket
-from ..utils.logging import LoggerFactory
+from emacs_remote import utils
+from emacs_remote.client.utils import get_client_parser
+from emacs_remote.messages import (Request, Response, ServerTerminateRequest,
+                                   ShellRequest)
+from emacs_remote.messages.startup import SERVER_STARTUP_MSG
+from emacs_remote.utils.atomic import AtomicInt
+from emacs_remote.utils.logging import LoggerFactory
+from emacs_remote.utils.stcp import SecureTCP
+from emacs_remote.utils.stcp_socket import SecureTCPSocket
 
 
 class ClientDaemon:
@@ -48,9 +50,6 @@ class ClientDaemon:
 
         self.active_requests = AtomicInt()
         self.requests = Queue()
-        # self.requests.put(ShellRequest(["ls"]))
-        # self.requests.put(ShellRequest(["git", "status"]))
-        # self.requests.put(TerminateRequest())
 
         self.session = None
         self.exceptions = Queue()
@@ -61,7 +60,7 @@ class ClientDaemon:
 
         self.logging_level = logging_level
         self.logging_factory = LoggerFactory(
-            logging_level, self.workspace_path.joinpath("client.log")
+            logging_level, self.workspace_path.joinpath("client_daemon.log")
         )
         self.logger = self.logging_factory.get_logger("client.daemon")
 
@@ -211,3 +210,38 @@ class ClientDaemon:
                 self.logger.error(str(e))
             finally:
                 daemon_port.unlink()
+
+    @staticmethod
+    def start_new_session(emacs_remote_path, host, workspace, logging_level):
+        daemon_script = Path(__file__).resolve()
+        p = subprocess.Popen(
+            [
+                sys.executable,
+                daemon_script,
+                "--emacs_remote_path",
+                emacs_remote_path,
+                "--host",
+                host,
+                "--workspace",
+                workspace,
+                "--level",
+                logging_level,
+            ],
+            start_new_session=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+
+def main(args):
+    with ClientDaemon(
+        emacs_remote_path=args.emacs_remote_path,
+        host=args.host,
+        workspace=args.workspace,
+        logging_level=args.level,
+    ) as daemon:
+        daemon.listen()
+
+
+if __name__ == "__main__":
+    main(get_client_parser().parse_args())
