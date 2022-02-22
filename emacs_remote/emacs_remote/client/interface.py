@@ -7,8 +7,9 @@ from time import sleep
 from emacs_remote import utils
 from emacs_remote.client.daemon import ClientDaemon
 from emacs_remote.client.utils import add_client_subparsers
-from emacs_remote.messages import (GetFileRequest, Request, Response,
-                                   ServerTerminateRequest, ShellRequest)
+from emacs_remote.messages import (GetFileRequest, PortRequest, Request,
+                                   Response, ServerTerminateRequest,
+                                   ShellRequest)
 from emacs_remote.utils.logging import LoggerFactory
 from emacs_remote.utils.stcp_socket import SecureTCPSocket
 
@@ -17,22 +18,7 @@ class ClientInterface:
     def __init__(
         self, emacs_remote_path: str, host: str, workspace: str, logging_level: str
     ):
-        self.host = host
-        self.workspace = Path(workspace)
-        self.workspace_hash = utils.md5((host, workspace))
-
-        self.emacs_remote_path = Path(emacs_remote_path)
-        self.emacs_remote_path.mkdir(parents=True, exist_ok=True)
-        self.workspace_path = self.emacs_remote_path.joinpath(
-            "workspaces", self.workspace_hash
-        )
-        self.workspace_path.mkdir(parents=True, exist_ok=True)
-        os.chdir(self.workspace_path.resolve())
-
-        print("Workspace ", self.workspace_path)
-
-        self.base_path = self.workspace_path.joinpath(self.workspace.name)
-        self.base_path.mkdir(exist_ok=True)
+        self.workspace = Workspace(host, emacs_remote_path, workspace)
 
         port_file = self.workspace_path.joinpath("daemon.port")
         if not port_file.exists():
@@ -53,11 +39,7 @@ class ClientInterface:
         self.port = int(port_file.read_text().strip())
         self.socket = SecureTCPSocket()
 
-        self.logging_level = logging_level
-        self.logging_factory = LoggerFactory(
-            logging_level, self.workspace_path.joinpath("client_interface.log")
-        )
-        self.logger = self.logging_factory.get_logger("client.daemon")
+        self.logger = self.workspace.logger("client.daemon")
 
     def __enter__(self):
         self.socket.__enter__()
@@ -67,18 +49,32 @@ class ClientInterface:
     def __exit__(self, *args):
         self.socket.__exit__(*args)
 
+    def send_request(self, request):
+        self.socket.sendall(PortRequest())
+        response = self.socket.recvall()
+
+        if not isinstance(response, PortResponse):
+            self.logger.debug(f"Expected response PortResponse. Got: {type(response)}")
+        else:
+            port = response.port
+            with SecureTCPSocket() as s:
+                s.connect("localhost", port)
+                s.sendall(request)
+                return s.recvall(timeout=300)  # wait up to 5 mins for response
+
     def execute(self, args):
         if args.command == "exit":
-            self.socket.sendall(ServerTerminateRequest())
+            self.socket.sendall(TerminateRequest())
             response = self.socket.recvall()
             self.logger.info("Client Daemon Succesfully Terminated!")
         elif args.command == "get":
             self.socket.sendall(GetFileRequest(args.filename, args.absolute))
             response = self.socket.recvall()
-            if isinstance(response, Response):
-                raise TypeError(f"Expected response type. Got: {type(response)}")
+            if response:
+                if isinstance(response, Response):
+                    raise TypeError(f"Expected response type. Got: {type(response)}")
 
-            response.run(self)
+                response.run(self)
 
     def prompt(self):
         parser = argparse.ArgumentParser()

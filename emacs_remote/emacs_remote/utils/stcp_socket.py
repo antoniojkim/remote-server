@@ -1,7 +1,7 @@
+import logging
 import select
 import socket
 import zlib
-import logging
 from dataclasses import astuple, is_dataclass
 
 import msgpack
@@ -148,7 +148,7 @@ class SecureTCPSocket:
 
         self.recv_buffer = self.recv_buffer[16:]
         while len(self.recv_buffer) < message_size:
-            data = self.socket.recv(1024)
+            data = self.socket.recv(4096)
             if len(data) == 0:
                 return None
 

@@ -5,15 +5,17 @@ import signal
 import socket
 import sys
 from pathlib import Path
-from queue import Queue, Empty as EmptyQueue
+from queue import Empty as EmptyQueue
+from queue import Queue
 from threading import Barrier, Event, Thread
 from time import sleep
 
 from .. import utils
 from ..messages import Request, ShellResponse
 from ..messages.startup import SERVER_STARTUP_MSG
-from ..utils.stcp_socket import SecureTCPSocket
 from ..utils.logging import LoggerFactory
+from ..utils.stcp_socket import SecureTCPSocket
+from ..workspace import Workspace
 
 
 class ServerDaemon:
@@ -33,22 +35,11 @@ class ServerDaemon:
             ports: Ports to listen on
             logging_level: The logging level
         """
-        self.workspace = Path(workspace)
-        os.chdir(self.workspace.resolve())
+        self.workspace = Workspace(None, emacs_remote_path, workspace)
 
         self.ports = ports
 
-        self.emacs_remote_path = Path(emacs_remote_path)
-        self.emacs_remote_path.mkdir(parents=True, exist_ok=True)
-        self.workspace_path = self.emacs_remote_path.joinpath(
-            "workspaces", utils.md5(workspace)
-        )
-        self.workspace_path.mkdir(parents=True, exist_ok=True)
-
-        self.logging_factory = LoggerFactory(
-            logging_level, self.workspace_path.joinpath("server.log")
-        )
-        self.logger = self.logging_factory.get_logger("server.daemon")
+        self.logger = self.workspace.logger("server.daemon")
 
         self.startup_barrier = Barrier(len(self.ports) + 1)
         self.threads = []
@@ -59,7 +50,7 @@ class ServerDaemon:
         terminate = Event()
         self.terminate_events.put(terminate)
 
-        logger = self.logging_factory.get_logger(f"server.{port}")
+        logger = self.workspace.logger(f"server.{port}")
 
         with SecureTCPSocket(logger=logger) as s:
             try:
