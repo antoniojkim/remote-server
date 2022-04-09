@@ -1,6 +1,8 @@
 /target
 **/.DS_Store
 
+/prototype/target
+
 Cargo.lock
 
 # Python ignore

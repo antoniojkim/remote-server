@@ -49,5 +49,5 @@ Add "advice" to following functions:
 
 ** Projectile
 
-Replaced the following ~defcustom~ functions:
+Replace the following ~defcustom~ functions:
 - =projectile-generic-command= (for getting the project index)
