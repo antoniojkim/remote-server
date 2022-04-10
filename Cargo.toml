@@ -14,7 +14,6 @@ dirs = "4.0.0"
 # rmp-serde = "0.15.5"
 # rmpv = { version = "0.4.7", features = ["with-serde"] }
 # num_enum = "0.5.4"
-# dirs = "3.0.2"
 # flate2 = "1.0.22"
 # ssh2 = "0.9.3"
 # ssh_config = "0.1.0"
@@ -25,9 +24,9 @@ dirs = "4.0.0"
 name = "emacs-local-client"
 path = "src/local_client.rs"
 
-# [[bin]]
-# name = "emacs-local-daemon"
-# path = "src/local_daemon.rs"
+[[bin]]
+name = "emacs-local-daemon"
+path = "src/local_daemon.rs"
 
 # [[bin]]
 # name = "emacs-remote-daemon"
