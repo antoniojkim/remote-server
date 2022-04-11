@@ -6,8 +6,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = "3.1.8"
+clap = { version = "3.1.8", features = ["derive"] }
 dirs = "4.0.0"
+log = "0.4.16"
+log4rs = "1.0.0"
 # serde = { version = "1.0.130", features = ["derive"] }
 # serde_json = "1.0.67"
 # rmp = "0.8.10"

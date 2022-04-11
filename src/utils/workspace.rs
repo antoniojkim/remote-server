@@ -43,17 +43,24 @@ impl Workspace {
         return workspace;
     }
 
-    pub fn daemon_addr(&self) -> Option<SocketAddr> {
-        let mut daemon_port_file = self.path.clone();
-        daemon_port_file.push("daemon.port");
+    pub fn daemon_addr_file(&self) -> PathBuf {
+        let mut daemon_addr_file = self.path.clone();
+        daemon_addr_file.push("daemon.addr");
+        return daemon_addr_file;
+    }
 
-        if daemon_port_file.exists() {
-            let daemon_port =
-                fs::read_to_string(daemon_port_file).expect("Unable to read daemon file");
-            return Some(SocketAddr::from((
-                [127, 0, 0, 1],
-                daemon_port.parse::<u16>().unwrap(),
-            )));
+    pub fn daemon_addr(&self) -> Option<SocketAddr> {
+        let daemon_addr_file = self.daemon_addr_file();
+
+        if daemon_addr_file.exists() {
+            let daemon_addr =
+                fs::read_to_string(daemon_addr_file).expect("Unable to read daemon address");
+            return Some(
+                daemon_addr
+                    .as_str()
+                    .parse()
+                    .expect("Invalid daemon address"),
+            );
         }
 
         None
@@ -61,6 +68,14 @@ impl Workspace {
 
     pub fn path(&self) -> &PathBuf {
         return &self.path;
+    }
+
+    pub fn project_dir(&self) -> &PathBuf {
+        return &self.project_dir;
+    }
+
+    pub fn hash(&self) -> u64 {
+        return self.hash;
     }
 }
 

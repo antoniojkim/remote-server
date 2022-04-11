@@ -1,7 +1,5 @@
-use std::fs;
 use std::net::{SocketAddr, UdpSocket};
 use std::process::Command;
-use std::thread;
 use std::time::Duration;
 
 mod utils;
@@ -20,27 +18,51 @@ impl Client {
         }
     }
 
+    fn get_socket_addr(&self) -> String {
+        self.socket.local_addr().unwrap().to_string()
+    }
+
     fn check_daemon(&self) -> Option<SocketAddr> {
-        let mut daemon_port_file = self.workspace.path().clone();
-        daemon_port_file.push("daemon.port");
+        let daemon_addr = self.workspace.daemon_addr();
 
         // If daemon already exists, return the address
-        if daemon_port_file.exists() {
-            let daemon_port =
-                fs::read_to_string(daemon_port_file).expect("Unable to read daemon file");
-            return Some(SocketAddr::from((
-                [127, 0, 0, 1],
-                daemon_port.parse::<u16>().unwrap(),
-            )));
+        if daemon_addr.is_some() {
+            return daemon_addr;
         }
 
         self.start_daemon();
 
-        None
+        self.socket
+            .set_read_timeout(Some(Duration::from_secs(3)))
+            .expect("Unable to set socket read timeout");
+
+        let mut buf = [0; 16];
+        match self.socket.recv_from(&mut buf) {
+            Ok((num_bytes, _src_addr)) => {
+                let daemon_addr = String::from_utf8((&mut buf[..num_bytes]).to_vec())
+                    .expect("Failed to receive daemon address");
+
+                println!("Client received daemon address: {}", daemon_addr);
+                return Some(
+                    daemon_addr
+                        .as_str()
+                        .parse()
+                        .expect("Invalid daemon address"),
+                );
+            }
+            Err(_) => {
+                return self.workspace.daemon_addr();
+            }
+        }
     }
 
     fn start_daemon(&self) {
         Command::new("emacs-local-daemon")
+            .args([
+                "--project-dir",
+                self.workspace.project_dir().to_str().unwrap(),
+            ])
+            .args(["--client-addr", self.get_socket_addr().as_str()])
             .spawn()
             .expect("Failed to start emacs-local-daemon");
     }
