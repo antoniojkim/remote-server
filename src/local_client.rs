@@ -64,7 +64,7 @@ impl Client {
             ])
             .args(["--client-addr", self.get_socket_addr().as_str()])
             .spawn()
-            .expect("Failed to start emacs-local-daemon");
+            .expect("Failed to start emacs-local-daemon. Make sure it is installed and discoverable in the PATH");
     }
 }
 
