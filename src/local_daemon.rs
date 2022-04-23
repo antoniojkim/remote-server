@@ -1,4 +1,5 @@
 use std::net::{SocketAddr, TcpListener, TcpStream, UdpSocket};
+use std::process::Command;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 use std::{fs, thread};
@@ -29,6 +30,10 @@ impl Daemon {
         return daemon;
     }
 
+    fn get_socket_addr(&self) -> String {
+        self.socket.local_addr().unwrap().to_string()
+    }
+
     fn write_port(&self) {
         let daemon_addr_file = self.workspace.daemon_addr_file();
 
@@ -38,6 +43,19 @@ impl Daemon {
         )
         .expect("Unable to write addr to file");
     }
+
+    fn start_remote_daemon(&self) {
+        Command::new("emacs-remote-client")
+            .args([
+                "--project-dir",
+                self.workspace.project_dir().to_str().unwrap(),
+            ])
+            .args(["--client-addr", self.get_socket_addr().as_str()])
+            .spawn()
+            .expect("Failed to start emacs-remote-client. Make sure it is installed and discoverable in the PATH");
+    }
+
+    fn stop_remote_daemon(&self) {}
 
     fn handle_stream_request(stream: &mut TcpStream, addr: &mut SocketAddr) -> bool {
         return true;
@@ -103,6 +121,8 @@ impl Drop for Daemon {
     fn drop(&mut self) {
         let daemon_addr_file = self.workspace.daemon_addr_file();
         fs::remove_file(daemon_addr_file).expect("Unable to remove daemon port file");
+
+        self.stop_remote_daemon();
     }
 }
 
@@ -134,6 +154,8 @@ fn main() {
         .socket
         .send_to(addr.as_bytes(), &client_socket_addr)
         .expect("Failed to send daemon address to client");
+
+    daemon.start_remote_daemon();
 
     daemon.listen();
 }

@@ -30,6 +30,10 @@ path = "src/local_client.rs"
 name = "emacs-local-daemon"
 path = "src/local_daemon.rs"
 
-# [[bin]]
-# name = "emacs-remote-daemon"
-# path = "src/_daemon.rs"
+[[bin]]
+name = "emacs-remote-client"
+path = "src/remote_client.rs"
+
+[[bin]]
+name = "emacs-remote-daemon"
+path = "src/remote_daemon.rs"
