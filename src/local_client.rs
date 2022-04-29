@@ -7,7 +7,7 @@ use clap::Parser;
 
 mod requests;
 use requests::init_request::{InitRequest, InitResponse};
-use requests::request::{Request, Response};
+use requests::request::{Dispatch, Request, Response};
 
 mod utils;
 use utils::workspace::Workspace;
@@ -74,7 +74,7 @@ impl Client {
             .expect("Failed to start emacs-local-daemon. Make sure it is installed and discoverable in the PATH");
     }
 
-    fn send_to_daemon(&self, socket: &SocketAddr, request: &impl Request) {
+    fn send_to_daemon(&self, socket: &SocketAddr, request: &Request) -> Result<u16, u16> {
         let mut stream =
             TcpStream::connect(socket).expect("Failed to connect to emacs-local-daemon");
 
@@ -87,8 +87,8 @@ impl Client {
             .read(&mut response)
             .expect("Did not receive response from emacs-local-daemon");
 
-        let response = request.get_response_from_bytes(&response.to_vec());
-        response.run().unwrap();
+        let response = Response::from_bytes(&response.to_vec());
+        response.dispatch()
     }
 }
 
@@ -113,6 +113,6 @@ fn main() {
         return;
     }
 
-    let payload = InitRequest::new();
-    client.send_to_daemon(&socket.unwrap(), &payload);
+    let request = InitRequest::new().as_request();
+    client.send_to_daemon(&socket.unwrap(), &request);
 }

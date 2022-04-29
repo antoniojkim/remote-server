@@ -7,6 +7,10 @@ use std::{fs, thread};
 
 use clap::Parser;
 
+mod requests;
+use requests::init_request::{InitRequest, InitResponse};
+use requests::request::{Dispatch, Request, Response};
+
 mod utils;
 use utils::workspace::Workspace;
 
@@ -72,6 +76,8 @@ impl Daemon {
         stream
             .read(&mut request)
             .expect("Could not read request from emacs-local-client");
+
+        let request = Request::from_bytes(request).expect("Could not parse request");
 
         let request =
             std::str::from_utf8(&request).expect("Could not parse request from local client");

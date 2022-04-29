@@ -15,6 +15,7 @@ serde = { version = "1.0.136", features = ["derive"] }
 # rmp = "0.8.10"
 rmp-serde = "1.1.0"
 # rmpv = { version = "0.4.7", features = ["with-serde"] }
+enum_dispatch = "0.3.8"
 # num_enum = "0.5.4"
 # flate2 = "1.0.22"
 # ssh2 = "0.9.3"

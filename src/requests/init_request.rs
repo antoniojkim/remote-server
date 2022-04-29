@@ -1,4 +1,6 @@
-use super::request::{Request, Response};
+use super::request::{Dispatch, Request, Response};
+use super::types::RequestType;
+use super::types::ResponseType;
 
 extern crate rmp_serde as rmps;
 extern crate serde;
@@ -9,22 +11,26 @@ use serde::{Deserialize, Serialize};
 pub struct InitResponse {
     contents: String,
 }
+impl InitResponse {
+    pub fn new() -> InitResponse {
+        return InitResponse {
+            contents: "Hello there!".to_string(),
+        };
+    }
 
-impl Response for InitResponse {
-    fn run(&self) -> Result<u16, u16> {
-        println!("Response: {}", self.contents);
+    pub fn from_bytes(data: &Vec<u8>) -> InitResponse {
+        return rmps::from_slice(&data.as_slice()).unwrap();
+    }
+
+    pub fn as_response(&self) -> Response {
+        Response::init(ResponseType::InitResponse, rmps::to_vec(&self).unwrap())
+    }
+}
+
+impl Dispatch for InitResponse {
+    fn dispatch(&self) -> Result<u16, u16> {
         Ok(0)
     }
-
-    fn as_bytes(&self) -> Vec<u8> {
-        return rmps::to_vec(&self).unwrap();
-    }
-
-    // fn from_bytes(bytes: &Vec<u8>) -> Box<dyn Response> {
-    //     Box::new(
-    //         rmps::from_slice::<InitResponse>(bytes.as_slice()).expect("Could not convert bytes into Response")
-    //     )
-    // }
 }
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
@@ -38,24 +44,18 @@ impl InitRequest {
             contents: "Hello there!".to_string(),
         };
     }
+
+    pub fn from_bytes(data: &Vec<u8>) -> InitRequest {
+        return rmps::from_slice(&data.as_slice()).unwrap();
+    }
+
+    pub fn as_request(&self) -> Request {
+        Request::init(RequestType::InitRequest, rmps::to_vec(&self).unwrap())
+    }
 }
 
-impl Request for InitRequest {
-    fn run(&self) -> Box<dyn Response> {
-        println!("Request: {}", self.contents);
-        Box::new(InitResponse {
-            contents: "Hiya!".to_string(),
-        })
-    }
-
-    fn as_bytes(&self) -> Vec<u8> {
-        return rmps::to_vec(&self).unwrap();
-    }
-
-    fn get_response_from_bytes(&self, bytes: &Vec<u8>) -> Box<dyn Response> {
-        Box::new(
-            rmps::from_slice::<InitResponse>(bytes.as_slice())
-                .expect("Could not convert bytes into InitResponse"),
-        )
+impl Dispatch for InitRequest {
+    fn dispatch(&self) -> Result<u16, u16> {
+        Ok(0)
     }
 }
