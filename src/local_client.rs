@@ -1,6 +1,13 @@
-use std::net::{SocketAddr, UdpSocket};
+use std::io::{Read, Write};
+use std::net::{SocketAddr, TcpStream, UdpSocket};
 use std::process::Command;
 use std::time::Duration;
+
+use clap::Parser;
+
+mod requests;
+use requests::init_request::{InitRequest, InitResponse};
+use requests::request::{Request, Response};
 
 mod utils;
 use utils::workspace::Workspace;
@@ -66,20 +73,46 @@ impl Client {
             .spawn()
             .expect("Failed to start emacs-local-daemon. Make sure it is installed and discoverable in the PATH");
     }
+
+    fn send_to_daemon(&self, socket: &SocketAddr, request: &impl Request) {
+        let mut stream =
+            TcpStream::connect(socket).expect("Failed to connect to emacs-local-daemon");
+
+        stream
+            .write(&request.as_bytes())
+            .expect("Could not send request to emacs-local-daemon");
+
+        let mut response = [0; 1024];
+        stream
+            .read(&mut response)
+            .expect("Did not receive response from emacs-local-daemon");
+
+        let response = request.get_response_from_bytes(&response.to_vec());
+        response.run().unwrap();
+    }
+}
+
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    #[clap(short, long)]
+    project_dir: String,
 }
 
 fn main() {
     println!("Emacs Local Client");
+    let args = Args::parse();
 
-    let project_dir = "/Users/antoniokim/Documents/Projects/emacs-remote".to_string();
-    let client = Client::new(&project_dir);
+    let client = Client::new(&args.project_dir);
 
     // Check if daemon exists, otherwise start a new one
-    client.check_daemon();
+    let socket = client.check_daemon();
 
-    println!(
-        "{} -> {}",
-        client.workspace,
-        client.socket.local_addr().unwrap()
-    );
+    if socket.is_none() {
+        println!("Unable to connect to emacs-local-daemon");
+        return;
+    }
+
+    let payload = InitRequest::new();
+    client.send_to_daemon(&socket.unwrap(), &payload);
 }

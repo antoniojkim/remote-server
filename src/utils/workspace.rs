@@ -29,15 +29,19 @@ impl Workspace {
         workspace.path.push(home_dir);
         workspace.path.push(".emacs-remote-server");
         workspace.path.push("workspaces");
-        workspace.path.push(
-            workspace
-                .project_dir
-                .file_name()
-                .expect("Invalid Project Name"),
-        );
+        let project_name = workspace
+            .project_dir
+            .file_name()
+            .expect("Invalid Project Name");
+        workspace.path.push(project_name);
 
         if !workspace.path.exists() {
             fs::create_dir_all(&workspace.path).expect("Could not make workspace path");
+            let mut project_dir = workspace.path.clone();
+            project_dir.push(project_name);
+            if !project_dir.exists() {
+                fs::create_dir_all(&project_dir).expect("Could not make project path");
+            }
         }
 
         return workspace;

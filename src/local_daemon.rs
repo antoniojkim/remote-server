@@ -1,3 +1,4 @@
+use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream, UdpSocket};
 use std::process::Command;
 use std::sync::{Arc, Mutex, RwLock};
@@ -12,6 +13,7 @@ use utils::workspace::Workspace;
 struct Daemon {
     // UDP socket for listening to request from remote daemon
     socket: Arc<UdpSocket>,
+    remote_socket: Option<UdpSocket>,
     // TCP listener for listening to request from local clients
     stream: Arc<TcpListener>,
     workspace: Workspace,
@@ -21,6 +23,7 @@ impl Daemon {
     fn new(project_dir: &String) -> Daemon {
         let daemon = Daemon {
             socket: Arc::new(UdpSocket::bind("localhost:0").expect("Failed to bind UDP port")),
+            remote_socket: None,
             stream: Arc::new(TcpListener::bind("localhost:0").expect("Failed to bind TCP port")),
             workspace: Workspace::new(project_dir),
         };
@@ -45,25 +48,46 @@ impl Daemon {
     }
 
     fn start_remote_daemon(&self) {
-        Command::new("emacs-remote-client")
+        // TODO: Implement this connection via ssh
+        let output = Command::new("emacs-remote-client")
             .args([
                 "--project-dir",
                 self.workspace.project_dir().to_str().unwrap(),
             ])
             .args(["--client-addr", self.get_socket_addr().as_str()])
-            .spawn()
+            .output()
             .expect("Failed to start emacs-remote-client. Make sure it is installed and discoverable in the PATH");
+
+        let output = std::str::from_utf8(output.stdout.as_slice())
+            .expect("Unable to read remote client output");
+        println!("emacs-remote-client output: {}", output);
     }
 
     fn stop_remote_daemon(&self) {}
 
     fn handle_stream_request(stream: &mut TcpStream, addr: &mut SocketAddr) -> bool {
+        println!("{}", addr);
+
+        let mut request = [0; 1024];
+        stream
+            .read(&mut request)
+            .expect("Could not read request from emacs-local-client");
+
+        let request =
+            std::str::from_utf8(&request).expect("Could not parse request from local client");
+        println!("Local request: '{}'", request);
+
+        let request = "Daemon response".as_bytes();
+        stream
+            .write(&request)
+            .expect("Could not send request to emacs-local-daemon");
+
         return true;
     }
 
     fn listen(&self) {
         // TODO: Change to `false` once socket logic is implemented
-        let finished = Arc::new(Mutex::new(true));
+        let finished = Arc::new(Mutex::new(false));
 
         let socket_finished = finished.clone();
         let socket = self.socket.clone();
@@ -85,7 +109,7 @@ impl Daemon {
             }
         });
 
-        // Listen for requests from clients
+        // Listen for requests from local clients
         loop {
             // Check exit condition
             {
@@ -141,19 +165,22 @@ fn main() {
 
     let daemon = Daemon::new(&args.project_dir);
 
-    let client_socket_addr: SocketAddr = args
-        .client_addr
-        .as_str()
-        .parse()
-        .expect("Invalid client address");
+    // Broadcast address to client
+    if !args.client_addr.is_empty() {
+        let client_socket_addr: SocketAddr = args
+            .client_addr
+            .as_str()
+            .parse()
+            .expect("Invalid client address");
 
-    let addr = daemon.socket.local_addr().unwrap().to_string();
-    println!("Sending address to client: {}", addr);
+        let addr = daemon.stream.local_addr().unwrap().to_string();
+        println!("Sending address to client: {}", addr);
 
-    daemon
-        .socket
-        .send_to(addr.as_bytes(), &client_socket_addr)
-        .expect("Failed to send daemon address to client");
+        daemon
+            .socket
+            .send_to(addr.as_bytes(), &client_socket_addr)
+            .expect("Failed to send daemon address to client");
+    }
 
     daemon.start_remote_daemon();
 
