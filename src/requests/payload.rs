@@ -4,6 +4,7 @@ extern crate serde;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use super::exit_request::{ExitRequest, ExitResponse};
 use super::msg_request::{MsgRequest, MsgResponse};
 use super::request::{Request, Response};
 use super::types::PayloadType;
@@ -71,15 +72,15 @@ impl Payload {
 
     pub fn to_request(&self) -> Box<dyn Request> {
         match self.payload_type {
-            PayloadType::MsgRequest => Box::new(MsgRequest::from_bytes(&self.data).unwrap()),
-            _ => panic!("Invalid request type"),
+            PayloadType::Exit => Box::new(ExitRequest::from_bytes(&self.data).unwrap()),
+            PayloadType::Msg => Box::new(MsgRequest::from_bytes(&self.data).unwrap()),
         }
     }
 
     pub fn to_response(&self) -> Box<dyn Response> {
         match self.payload_type {
-            PayloadType::MsgResponse => Box::new(MsgResponse::from_bytes(&self.data).unwrap()),
-            _ => panic!("Invalid request type"),
+            PayloadType::Exit => Box::new(ExitResponse::from_bytes(&self.data).unwrap()),
+            PayloadType::Msg => Box::new(MsgResponse::from_bytes(&self.data).unwrap()),
         }
     }
 }

@@ -3,9 +3,10 @@ use std::net::{SocketAddr, TcpStream, UdpSocket};
 use std::process::Command;
 use std::time::Duration;
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 
 mod requests;
+use requests::exit_request::ExitRequest;
 use requests::msg_request::MsgRequest;
 use requests::payload::Payload;
 use requests::request::Request;
@@ -76,15 +77,10 @@ impl Client {
             .expect("Failed to start emacs-local-daemon. Make sure it is installed and discoverable in the PATH");
     }
 
-    fn send_to_daemon(
-        &self,
-        socket: &SocketAddr,
-        request: &(impl Request + Serialize),
-    ) -> Result<u16, u16> {
+    fn send_to_daemon(&self, socket: &SocketAddr, payload: &Payload) -> Result<u16, u16> {
         let mut stream =
             TcpStream::connect(socket).expect("Failed to connect to emacs-local-daemon");
 
-        let payload = Payload::from_request(request);
         stream
             .write(&payload.as_bytes())
             .expect("Could not send request to emacs-local-daemon");
@@ -100,11 +96,22 @@ impl Client {
     }
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser)]
 #[clap(author, version, about, long_about = None)]
 struct Args {
     #[clap(short, long)]
     project_dir: String,
+
+    #[clap(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Run a shell command
+    Shell { args: Vec<String> },
+    /// Exit the daemon
+    Exit {},
 }
 
 fn main() {
@@ -121,6 +128,15 @@ fn main() {
         return;
     }
 
-    let request = MsgRequest::new();
-    client.send_to_daemon(&socket.unwrap(), &request);
+    let request = match args.command {
+        Commands::Shell { args } => {
+            panic!("Not implemented")
+        }
+        Commands::Exit {} => ExitRequest::new(),
+    };
+    let payload = Payload::from_request(&request);
+
+    client
+        .send_to_daemon(&socket.unwrap(), &payload)
+        .expect("Failed to run response");
 }

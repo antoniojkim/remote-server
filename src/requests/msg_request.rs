@@ -24,10 +24,11 @@ impl MsgResponse {
 
 impl Response for MsgResponse {
     fn run(&self) -> Result<u16, u16> {
-        Err(1)
+        println!("Response: {}", self.contents);
+        Ok(0)
     }
     fn get_type(&self) -> PayloadType {
-        PayloadType::MsgResponse
+        PayloadType::Msg
     }
 }
 
@@ -46,9 +47,10 @@ impl MsgRequest {
 
 impl Request for MsgRequest {
     fn run(&self) -> Option<Payload> {
+        println!("Request: {}", self.contents);
         Some(Payload::from_response(&MsgResponse::new()))
     }
     fn get_type(&self) -> PayloadType {
-        PayloadType::MsgRequest
+        PayloadType::Msg
     }
 }
