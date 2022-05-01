@@ -1,4 +1,4 @@
-pub mod dispatch;
-pub mod init_request;
+pub mod msg_request;
+pub mod payload;
 pub mod request;
 pub mod types;

@@ -6,10 +6,12 @@ use std::time::Duration;
 use clap::Parser;
 
 mod requests;
-use requests::init_request::{InitRequest, InitResponse};
-use requests::request::{Dispatch, Request, Response};
+use requests::msg_request::MsgRequest;
+use requests::payload::Payload;
+use requests::request::Request;
 
 mod utils;
+use serde::Serialize;
 use utils::workspace::Workspace;
 
 struct Client {
@@ -74,21 +76,27 @@ impl Client {
             .expect("Failed to start emacs-local-daemon. Make sure it is installed and discoverable in the PATH");
     }
 
-    fn send_to_daemon(&self, socket: &SocketAddr, request: &Request) -> Result<u16, u16> {
+    fn send_to_daemon(
+        &self,
+        socket: &SocketAddr,
+        request: &(impl Request + Serialize),
+    ) -> Result<u16, u16> {
         let mut stream =
             TcpStream::connect(socket).expect("Failed to connect to emacs-local-daemon");
 
+        let payload = Payload::from_request(request);
         stream
-            .write(&request.as_bytes())
+            .write(&payload.as_bytes())
             .expect("Could not send request to emacs-local-daemon");
 
-        let mut response = [0; 1024];
+        let mut payload = [0; 1024];
         stream
-            .read(&mut response)
+            .read(&mut payload)
             .expect("Did not receive response from emacs-local-daemon");
 
-        let response = Response::from_bytes(&response.to_vec());
-        response.dispatch()
+        let payload = Payload::from_bytes(&payload.to_vec()).expect("Failed to parse payload");
+        let response = payload.to_response();
+        response.run()
     }
 }
 
@@ -113,6 +121,6 @@ fn main() {
         return;
     }
 
-    let request = InitRequest::new().as_request();
+    let request = MsgRequest::new();
     client.send_to_daemon(&socket.unwrap(), &request);
 }

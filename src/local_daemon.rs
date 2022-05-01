@@ -8,10 +8,10 @@ use std::{fs, thread};
 use clap::Parser;
 
 mod requests;
-use requests::init_request::{InitRequest, InitResponse};
-use requests::request::{Dispatch, Request, Response};
+use requests::payload::Payload;
 
 mod utils;
+use utils::event::Event;
 use utils::workspace::Workspace;
 
 struct Daemon {
@@ -72,41 +72,33 @@ impl Daemon {
     fn handle_stream_request(stream: &mut TcpStream, addr: &mut SocketAddr) -> bool {
         println!("{}", addr);
 
-        let mut request = [0; 1024];
+        let mut payload = [0; 1024];
         stream
-            .read(&mut request)
+            .read(&mut payload)
             .expect("Could not read request from emacs-local-client");
 
-        let request = Request::from_bytes(request).expect("Could not parse request");
+        let payload = Payload::from_bytes(&payload.to_vec()).expect("Could not parse payload");
+        let request = payload.to_request();
+        let response = request.run();
 
-        let request =
-            std::str::from_utf8(&request).expect("Could not parse request from local client");
-        println!("Local request: '{}'", request);
-
-        let request = "Daemon response".as_bytes();
-        stream
-            .write(&request)
-            .expect("Could not send request to emacs-local-daemon");
-
+        if response.is_some() {
+            stream
+                .write(&response.unwrap().as_bytes())
+                .expect("Could not send request to emacs-local-daemon");
+        }
         return true;
     }
 
     fn listen(&self) {
         // TODO: Change to `false` once socket logic is implemented
-        let finished = Arc::new(Mutex::new(false));
+        let mut finished = Event::new();
+        finished.clear();
 
         let socket_finished = finished.clone();
         let socket = self.socket.clone();
         // Listen for requests from remote daemon
         let socket_thread = thread::spawn(move || {
-            loop {
-                // Check exit condition
-                {
-                    let is_finished = socket_finished.lock().unwrap();
-                    if *is_finished {
-                        return;
-                    }
-                }
+            while !socket_finished.is_set() {
                 let mut buf = [0; 10];
                 let (amt, src) = socket.recv_from(&mut buf).unwrap();
 
@@ -116,23 +108,15 @@ impl Daemon {
         });
 
         // Listen for requests from local clients
-        loop {
-            // Check exit condition
-            {
-                let is_finished = finished.lock().unwrap();
-                if *is_finished {
-                    break;
-                }
-            }
+        while !finished.is_set() {
             match self.stream.accept() {
                 Ok((mut stream, mut addr)) => {
-                    let socket_finished = finished.clone();
+                    let mut stream_finished = finished.clone();
                     thread::spawn(move || {
                         let set_finished = Daemon::handle_stream_request(&mut stream, &mut addr);
 
                         if set_finished {
-                            let mut is_finished = socket_finished.lock().unwrap();
-                            *is_finished = true;
+                            stream_finished.set()
                         }
                     });
 
