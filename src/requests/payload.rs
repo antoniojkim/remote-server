@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::exit_request::{ExitRequest, ExitResponse};
 use super::msg_request::{MsgRequest, MsgResponse};
 use super::request::{Request, Response};
+use super::shell_request::{ShellRequest, ShellResponse};
 use super::types::PayloadType;
 
 pub trait Encode {
@@ -74,6 +75,7 @@ impl Payload {
         match self.payload_type {
             PayloadType::Exit => Box::new(ExitRequest::from_bytes(&self.data).unwrap()),
             PayloadType::Msg => Box::new(MsgRequest::from_bytes(&self.data).unwrap()),
+            PayloadType::Shell => Box::new(ShellRequest::from_bytes(&self.data).unwrap()),
         }
     }
 
@@ -81,6 +83,7 @@ impl Payload {
         match self.payload_type {
             PayloadType::Exit => Box::new(ExitResponse::from_bytes(&self.data).unwrap()),
             PayloadType::Msg => Box::new(MsgResponse::from_bytes(&self.data).unwrap()),
+            PayloadType::Shell => Box::new(ShellResponse::from_bytes(&self.data).unwrap()),
         }
     }
 }

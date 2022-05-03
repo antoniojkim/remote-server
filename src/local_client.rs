@@ -15,6 +15,8 @@ mod utils;
 use serde::Serialize;
 use utils::workspace::Workspace;
 
+use crate::requests::shell_request::ShellRequest;
+
 struct Client {
     socket: UdpSocket,
     workspace: Workspace,
@@ -128,13 +130,12 @@ fn main() {
         return;
     }
 
-    let request = match args.command {
+    let payload = match args.command {
         Commands::Shell { args } => {
-            panic!("Not implemented")
+            Payload::from_request(&ShellRequest::new(client.workspace.project_dir(), args))
         }
-        Commands::Exit {} => ExitRequest::new(),
+        Commands::Exit {} => Payload::from_request(&ExitRequest::new()),
     };
-    let payload = Payload::from_request(&request);
 
     client
         .send_to_daemon(&socket.unwrap(), &payload)

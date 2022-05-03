@@ -6,4 +6,5 @@ use serde::{Deserialize, Serialize};
 pub enum PayloadType {
     Exit,
     Msg,
+    Shell,
 }
