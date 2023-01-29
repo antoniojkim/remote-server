@@ -2,6 +2,15 @@ import subprocess
 
 from request import request, response
 
+@response
+class ConnectionResponse:
+    def __call__(self) -> int:
+
+@request
+class ConnectionRequest:
+    def __call__(self) -> ConnectionResponse:
+        pass
+
 
 @response
 class ExitResponse:
