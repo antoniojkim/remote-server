@@ -1,29 +1,31 @@
 [package]
 name = "emacs-remote"
 version = "0.0.1"
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# dependencies can be upgraded by running `cargo upgrade`
 [dependencies]
-clap = "2.33.3"
-serde = { version = "1.0.130", features = ["derive"] }
-serde_json = "1.0.67"
-rmp = "0.8.10"
-rmp-serde = "0.15.5"
-rmpv = { version = "0.4.7", features = ["with-serde"] }
-num_enum = "0.5.4"
-dirs = "3.0.2"
-flate2 = "1.0.22"
-ssh2 = "0.9.3"
+clap = "4.5.30"
+serde = { version = "1.0.218", features = ["derive"] }
+serde_json = "1.0.139"
+rmp = "0.8.14"
+rmp-serde = "1.3.0"
+rmpv = { version = "1.3.0", features = ["with-serde"] }
+num_enum = "0.7.3"
+dirs = "6.0.0"
+flate2 = "1.0.35"
+ssh2 = "0.9.5"
 ssh_config = "0.1.0"
-whoami = "1.1.5"
+whoami = "1.5.2"
+emacs-rs-module = "0.19.0"
 
 
-[[bin]]
-name = "emacs-remote-client"
-path = "src/client.rs"
-
-[[bin]]
-name = "emacs-remote-server"
-path = "src/server.rs"
+# [[bin]]
+# name = "emacs-remote-client"
+# path = "src/client.rs"
+# 
+# [[bin]]
+# name = "emacs-remote-server"
+# path = "src/server.rs"
